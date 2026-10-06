@@ -1,4 +1,4 @@
-local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/library.luau"))()
+local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/refs/heads/main/Doors/library.luau"))()
 
 local wnd = lib.new("internal test")
 
