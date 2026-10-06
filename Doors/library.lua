@@ -41,6 +41,8 @@ local theme = {
 	accent = Color3.fromRGB(142, 82, 242),
 	txt = Color3.fromRGB(242, 238, 252),
 	sub = Color3.fromRGB(142, 128, 170),
+	warn = Color3.fromRGB(245, 195, 65),
+	danger = Color3.fromRGB(245, 75, 75),
 	font = Enum.Font.GothamMedium,
 	bold = Enum.Font.GothamBold
 }
@@ -250,12 +252,12 @@ function lib.new()
 	return self
 end
 
-function lib:toggle(text, def, cb)
+function lib:toggle(text, def, cb, desc)
 	cb = cb or function() end
 	local state = def or false
 	
 	local box = Instance.new("TextButton")
-	box.Size = UDim2.new(1, -24, 0, 32)
+	box.Size = desc and UDim2.new(1, -24, 0, 44) or UDim2.new(1, -24, 0, 32)
 	box.BackgroundColor3 = theme.elm
 	box.AutoButtonColor = false
 	box.Text = ""
@@ -275,11 +277,25 @@ function lib:toggle(text, def, cb)
 	lbl.Font = theme.font
 	lbl.TextSize = 12
 	lbl.TextColor3 = theme.txt
-	lbl.Position = UDim2.new(0, 10, 0, 0)
-	lbl.Size = UDim2.new(1, -55, 1, 0)
+	lbl.Position = desc and UDim2.new(0, 10, 0, 5) or UDim2.new(0, 10, 0, 0)
+	lbl.Size = desc and UDim2.new(1, -55, 0, 16) or UDim2.new(1, -55, 1, 0)
 	lbl.BackgroundTransparency = 1
 	lbl.TextXAlignment = Enum.TextXAlignment.Left
 	lbl.Parent = box
+
+	if desc then
+		local d_lbl = Instance.new("TextLabel")
+		d_lbl.Text = desc
+		d_lbl.Font = theme.font
+		d_lbl.TextSize = 10
+		d_lbl.TextColor3 = theme.txt
+		d_lbl.Position = UDim2.new(0, 10, 0, 22)
+		d_lbl.Size = UDim2.new(1, -55, 0, 15)
+		d_lbl.BackgroundTransparency = 1
+		d_lbl.TextXAlignment = Enum.TextXAlignment.Left
+		d_lbl.TextTruncate = Enum.TextTruncate.AtEnd
+		d_lbl.Parent = box
+	end
 
 	local switch = Instance.new("Frame")
 	switch.Size = UDim2.new(0, 36, 0, 18)
@@ -372,5 +388,51 @@ function lib:input(text, placeholder, def, cb)
 		cb(inp.Text)
 	end)
 end
+
+function lib:desc(text)
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, -34, 0, 0)
+	lbl.AutomaticSize = Enum.AutomaticSize.Y
+	lbl.BackgroundTransparency = 1
+	lbl.Text = text
+	lbl.Font = theme.font
+	lbl.TextSize = 11
+	lbl.TextColor3 = theme.txt
+	lbl.TextWrapped = true
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Parent = self.cont
+	return lbl
+end
+
+function lib:warn(text)
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, -34, 0, 0)
+	lbl.AutomaticSize = Enum.AutomaticSize.Y
+	lbl.BackgroundTransparency = 1
+	lbl.Text = text
+	lbl.Font = theme.font
+	lbl.TextSize = 11
+	lbl.TextColor3 = theme.warn
+	lbl.TextWrapped = true
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Parent = self.cont
+	return lbl
+end
+
+function lib:danger(text)
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, -34, 0, 0)
+	lbl.AutomaticSize = Enum.AutomaticSize.Y
+	lbl.BackgroundTransparency = 1
+	lbl.Text = text
+	lbl.Font = theme.font
+	lbl.TextSize = 11
+	lbl.TextColor3 = theme.danger
+	lbl.TextWrapped = true
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Parent = self.cont
+	return lbl
+end
+lib.alert = lib.danger
 
 return lib
