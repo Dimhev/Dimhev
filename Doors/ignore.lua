@@ -169,12 +169,17 @@ function ign.eyes(state)
 			fake_motor.Parent = remotes
 		end
 
+		local last_send = 0
 		local c = run.RenderStepped:Connect(function()
 			if active_eyes and has_eyes() then
-				if is_old then
-					real_motor:FireServer(0, -90, 0, false)
-				else
-					real_motor:FireServer(-650)
+				local now = os.clock()
+				if now - last_send >= 0.011 then
+					last_send = now
+					if is_old then
+						real_motor:FireServer(0, -90, 0, false)
+					else
+						real_motor:FireServer(-650)
+					end
 				end
 			end
 		end)
