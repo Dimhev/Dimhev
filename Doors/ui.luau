@@ -1,0 +1,296 @@
+local ts = game:GetService("TweenService")
+local uis = game:GetService("UserInputService")
+local cg = gethui and gethui() or game:GetService("CoreGui")
+
+if cg:FindFirstChild("ui") then
+	cg:FindFirstChild("ui"):Destroy()
+end
+
+local lib = {}
+lib.__index = lib
+
+local theme = {
+	bg = Color3.fromRGB(14, 11, 20),
+	sec = Color3.fromRGB(20, 16, 28),
+	elm = Color3.fromRGB(26, 20, 38),
+	stroke = Color3.fromRGB(48, 38, 68),
+	accent = Color3.fromRGB(128, 72, 216),
+	txt = Color3.fromRGB(235, 230, 245),
+	sub = Color3.fromRGB(125, 112, 148),
+	font = Enum.Font.GothamMedium,
+	bold = Enum.Font.GothamBold
+}
+
+local function tw(obj, dur, props)
+	ts:Create(obj, TweenInfo.new(dur, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
+end
+
+function lib.new(title_text)
+	local self = setmetatable({}, lib)
+	
+	local scr = Instance.new("ScreenGui")
+	scr.Name = "dimhev_ui"
+	scr.ResetOnSpawn = false
+	scr.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	scr.Parent = cg
+	
+	local main = Instance.new("CanvasGroup")
+	main.Name = "main"
+	main.Size = UDim2.new(0, 420, 0, 340)
+	main.Position = UDim2.new(0.5, -210, 0.5, -170)
+	main.BackgroundColor3 = theme.bg
+	main.BorderSizePixel = 0
+	main.GroupTransparency = 0
+	main.Parent = scr
+	
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = theme.stroke
+	stroke.Thickness = 1
+	stroke.Parent = main
+	
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = main
+
+	local top = Instance.new("Frame")
+	top.Name = "topbar"
+	top.Size = UDim2.new(1, 0, 0, 36)
+	top.BackgroundColor3 = theme.sec
+	top.BorderSizePixel = 0
+	top.Parent = main
+	
+	local top_str = Instance.new("UIStroke")
+	top_str.Color = theme.stroke
+	top_str.Thickness = 1
+	top_str.Parent = top
+	
+	local title = Instance.new("TextLabel")
+	title.Text = title_text or "hub"
+	title.Font = theme.bold
+	title.TextSize = 13
+	title.TextColor3 = theme.txt
+	title.Position = UDim2.new(0, 12, 0, 0)
+	title.Size = UDim2.new(0, 0, 1, 0)
+	title.AutomaticSize = Enum.AutomaticSize.X
+	title.BackgroundTransparency = 1
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Parent = top
+	
+	local author = Instance.new("TextLabel")
+	author.Text = "By dimhev"
+	author.Font = theme.font
+	author.TextSize = 11
+	author.TextColor3 = theme.sub
+	author.Position = UDim2.new(1, -12, 0, 0)
+	author.Size = UDim2.new(0, 0, 1, 0)
+	author.AutomaticSize = Enum.AutomaticSize.X
+	author.BackgroundTransparency = 1
+	author.TextXAlignment = Enum.TextXAlignment.Right
+	author.Parent = top
+
+	local cont = Instance.new("ScrollingFrame")
+	cont.Name = "content"
+	cont.Size = UDim2.new(1, 0, 1, -36)
+	cont.Position = UDim2.new(0, 0, 0, 36)
+	cont.BackgroundTransparency = 1
+	cont.BorderSizePixel = 0
+	cont.ScrollBarThickness = 2
+	cont.ScrollBarImageColor3 = theme.accent
+	cont.Parent = main
+
+	local list = Instance.new("UIListLayout")
+	list.Padding = UDim.new(0, 6)
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Parent = cont
+	
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 10)
+	pad.PaddingBottom = UDim.new(0, 10)
+	pad.Parent = cont
+
+	local drag, d_start, s_pos
+	top.InputBegan:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+			drag = true
+			d_start = inp.Position
+			s_pos = main.Position
+			inp.Changed:Connect(function()
+				if inp.UserInputState == Enum.UserInputState.End then
+					drag = false
+				end
+			end)
+		end
+	end)
+	
+	uis.InputChanged:Connect(function(inp)
+		if drag and inp.UserInputType == Enum.UserInputType.MouseMovement then
+			local d = inp.Position - d_start
+			main.Position = UDim2.new(s_pos.X.Scale, s_pos.X.Offset + d.X, s_pos.Y.Scale, s_pos.Y.Offset + d.Y)
+		end
+	end)
+
+	local opened = true
+	local toggling = false
+	local orig_size = main.Size
+	
+	local function toggle_state()
+		if toggling then return end
+		toggling = true
+		opened = not opened
+		
+		if opened then
+			main.Visible = true
+			tw(main, 0.25, {
+				GroupTransparency = 0,
+				Size = orig_size
+			})
+			task.wait(0.25)
+		else
+			tw(main, 0.2, {
+				GroupTransparency = 1,
+				Size = UDim2.new(orig_size.X.Scale, orig_size.X.Offset, 0, 0)
+			})
+			task.wait(0.2)
+			main.Visible = false
+		end
+		toggling = false
+	end
+
+	uis.InputBegan:Connect(function(inp, gpe)
+		if not gpe and inp.KeyCode == Enum.KeyCode.RightShift then
+			toggle_state()
+		end
+	end)
+
+	self.gui = scr
+	self.main = main
+	self.cont = cont
+	self.toggle_ui = toggle_state
+	return self
+end
+
+function lib:toggle(text, def, cb)
+	cb = cb or function() end
+	local state = def or false
+	
+	local box = Instance.new("TextButton")
+	box.Size = UDim2.new(1, -24, 0, 32)
+	box.BackgroundColor3 = theme.elm
+	box.AutoButtonColor = false
+	box.Text = ""
+	box.Parent = self.cont
+	
+	local crn = Instance.new("UICorner")
+	crn.CornerRadius = UDim.new(0, 6)
+	crn.Parent = box
+	
+	local stk = Instance.new("UIStroke")
+	stk.Color = theme.stroke
+	stk.Thickness = 1
+	stk.Parent = box
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Text = text
+	lbl.Font = theme.font
+	lbl.TextSize = 12
+	lbl.TextColor3 = theme.txt
+	lbl.Position = UDim2.new(0, 10, 0, 0)
+	lbl.Size = UDim2.new(1, -55, 1, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Parent = box
+
+	local switch = Instance.new("Frame")
+	switch.Size = UDim2.new(0, 36, 0, 18)
+	switch.Position = UDim2.new(1, -44, 0.5, -9)
+	switch.BackgroundColor3 = state and theme.accent or theme.sec
+	switch.Parent = box
+	
+	local s_crn = Instance.new("UICorner")
+	s_crn.CornerRadius = UDim.new(1, 0)
+	s_crn.Parent = switch
+	
+	local dot = Instance.new("Frame")
+	dot.Size = UDim2.new(0, 14, 0, 14)
+	dot.Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+	dot.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
+	dot.Parent = switch
+	
+	local d_crn = Instance.new("UICorner")
+	d_crn.CornerRadius = UDim.new(1, 0)
+	d_crn.Parent = dot
+
+	local function update()
+		tw(switch, 0.18, {
+			BackgroundColor3 = state and theme.accent or theme.sec
+		})
+		tw(dot, 0.18, {
+			Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+		})
+		cb(state)
+	end
+
+	box.MouseButton1Click:Connect(function()
+		state = not state
+		update()
+	end)
+end
+
+function lib:input(text, placeholder, def, cb)
+	cb = cb or function() end
+	
+	local box = Instance.new("Frame")
+	box.Size = UDim2.new(1, -24, 0, 32)
+	box.BackgroundColor3 = theme.elm
+	box.Parent = self.cont
+	
+	local crn = Instance.new("UICorner")
+	crn.CornerRadius = UDim.new(0, 6)
+	crn.Parent = box
+	
+	local stk = Instance.new("UIStroke")
+	stk.Color = theme.stroke
+	stk.Thickness = 1
+	stk.Parent = box
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Text = text
+	lbl.Font = theme.font
+	lbl.TextSize = 12
+	lbl.TextColor3 = theme.txt
+	lbl.Position = UDim2.new(0, 10, 0, 0)
+	lbl.Size = UDim2.new(0, 0, 1, 0)
+	lbl.AutomaticSize = Enum.AutomaticSize.X
+	lbl.BackgroundTransparency = 1
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Parent = box
+
+	local inp = Instance.new("TextBox")
+	inp.Size = UDim2.new(0, 100, 0, 22)
+	inp.Position = UDim2.new(1, -108, 0.5, -11)
+	inp.BackgroundColor3 = theme.sec
+	inp.Text = def or ""
+	inp.PlaceholderText = placeholder or "..."
+	inp.Font = theme.font
+	inp.TextSize = 11
+	inp.TextColor3 = theme.txt
+	inp.PlaceholderColor3 = theme.sub
+	inp.ClearTextOnFocus = false
+	inp.Parent = box
+	
+	local i_crn = Instance.new("UICorner")
+	i_crn.CornerRadius = UDim.new(0, 4)
+	i_crn.Parent = inp
+	
+	local i_stk = Instance.new("UIStroke")
+	i_stk.Color = theme.stroke
+	i_stk.Thickness = 1
+	i_stk.Parent = inp
+
+	inp.FocusLost:Connect(function()
+		cb(inp.Text)
+	end)
+end
+
+return lib
