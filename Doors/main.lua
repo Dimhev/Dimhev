@@ -15,6 +15,10 @@ wnd:toggle("Ignore Snare", false, function(val)
 	ign.snare(val)
 end)
 
+wnd:toggle("Ignore Eyes", false, function(val)
+	ign.eyes(val)
+end)
+
 wnd.gui.Destroying:Connect(function()
 	ign.cleanup()
 end)
