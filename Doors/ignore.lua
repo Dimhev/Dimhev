@@ -151,10 +151,20 @@ function ign.snare(state)
 	end
 end
 
-local function has_eyes()
-	return ws:FindFirstChild("Eyes") ~= nil
-		or ws:FindFirstChild("Lookman") ~= nil
-		or ws:FindFirstChild("BackdoorLookman") ~= nil
+local function get_eyes()
+	return ws:FindFirstChild("Eyes")
+		or ws:FindFirstChild("Lookman")
+		or ws:FindFirstChild("BackdoorLookman")
+end
+
+local function is_eyes_visible(inst)
+	if not inst then return false end
+	local part = inst:FindFirstChild("Core") or inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart")
+	if not part then return false end
+	local cam = ws.CurrentCamera
+	if not cam then return false end
+	local pos, on_screen = cam:WorldToViewportPoint(part.Position)
+	return on_screen and pos.Z > 0
 end
 
 function ign.eyes(state)
@@ -169,12 +179,10 @@ function ign.eyes(state)
 			fake_motor.Parent = remotes
 		end
 
-		local last_send = 0
 		local c = run.RenderStepped:Connect(function()
-			if active_eyes and has_eyes() then
-				local now = os.clock()
-				if now - last_send >= 0.011 then
-					last_send = now
+			if active_eyes then
+				local e = get_eyes()
+				if e and is_eyes_visible(e) then
 					if is_old then
 						real_motor:FireServer(0, -90, 0, false)
 					else
