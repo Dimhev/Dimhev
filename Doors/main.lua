@@ -19,6 +19,8 @@ wnd:toggle("Ignore Eyes", false, function(val)
 	ign.eyes(val)
 end)
 
+wnd:warn("Warning: This feature is highly experimental and unstable. May cause network drops and does not guarantee damage immunity.")
+
 wnd.gui.Destroying:Connect(function()
 	ign.cleanup()
 end)
