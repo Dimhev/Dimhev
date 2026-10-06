@@ -183,10 +183,12 @@ function ign.eyes(state)
 			if active_eyes then
 				local e = get_eyes()
 				if e and is_eyes_visible(e) then
-					if is_old then
-						real_motor:FireServer(0, -90, 0, false)
-					else
-						real_motor:FireServer(-650)
+					for _ = 1, 2 do
+						if is_old then
+							real_motor:FireServer(0, -90, 0, false)
+						else
+							real_motor:FireServer(-650)
+						end
 					end
 				end
 			end
