@@ -11,7 +11,7 @@ wnd:toggle("Delete Screech", false, function(val)
 	ign.screech(val)
 end)
 
-wnd:toggle("Delete Snare", false, function(val)
+wnd:toggle("Ignore Snare", false, function(val)
 	ign.snare(val)
 end)
 
