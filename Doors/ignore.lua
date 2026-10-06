@@ -8,8 +8,20 @@ local screech_rem = remotes:WaitForChild("Screech")
 local ign = {}
 local conns_a90 = {}
 local conns_screech = {}
+local conns_snare = {}
+
 local active_a90 = false
 local active_screech = false
+local active_snare = false
+
+local function disconnect_list(list)
+	for _, c in ipairs(list) do
+		if typeof(c) == "RBXScriptConnection" and c.Connected then
+			c:Disconnect()
+		end
+	end
+	table.clear(list)
+end
 
 local function get_a90_frame()
 	local pgui = lp:FindFirstChild("PlayerGui")
@@ -19,25 +31,6 @@ local function get_a90_frame()
 	local jmp = mui:FindFirstChild("Jumpscare")
 	if not jmp then return nil end
 	return jmp:FindFirstChild("Jumpscare_A90")
-end
-
-local function get_screech_module()
-	local pgui = lp:FindFirstChild("PlayerGui")
-	local rl = pgui and pgui:FindFirstChild("MainUI")
-	rl = rl and rl:FindFirstChild("Initiator")
-	rl = rl and rl:FindFirstChild("Main_Game")
-	rl = rl and rl:FindFirstChild("RemoteListener")
-	local mods = rl and rl:FindFirstChild("Modules")
-	return mods and mods:FindFirstChild("Screech")
-end
-
-local function disconnect_list(list)
-	for _, c in ipairs(list) do
-		if typeof(c) == "RBXScriptConnection" and c.Connected then
-			c:Disconnect()
-		end
-	end
-	table.clear(list)
 end
 
 function ign.a90(state)
@@ -63,6 +56,16 @@ function ign.a90(state)
 			frame.Visible = false
 		end
 	end
+end
+
+local function get_screech_module()
+	local pgui = lp:FindFirstChild("PlayerGui")
+	local rl = pgui and pgui:FindFirstChild("MainUI")
+	rl = rl and rl:FindFirstChild("Initiator")
+	rl = rl and rl:FindFirstChild("Main_Game")
+	rl = rl and rl:FindFirstChild("RemoteListener")
+	local mods = rl and rl:FindFirstChild("Modules")
+	return mods and mods:FindFirstChild("Screech")
 end
 
 function ign.screech(state)
@@ -101,9 +104,58 @@ function ign.screech(state)
 	end
 end
 
+local function process_snare_hitbox(hitbox)
+	if not hitbox or not hitbox:IsA("BasePart") then return end
+	if hitbox:GetAttribute("SnareProcessed") then return end
+	hitbox:SetAttribute("SnareProcessed", true)
+
+	pcall(function()
+		hitbox.CanTouch = false
+	end)
+
+	task.defer(function()
+		if hitbox and hitbox.Parent then
+			hitbox:Destroy()
+		end
+	end)
+end
+
+local function check_snare_instance(inst)
+	if not inst then return end
+
+	if inst.Name == "Hitbox" and inst:FindFirstAncestor("Snare") then
+		process_snare_hitbox(inst)
+	elseif inst.Name == "Snare" then
+		local hb = inst:FindFirstChild("Hitbox", true)
+		if hb then
+			process_snare_hitbox(hb)
+		end
+	end
+end
+
+function ign.snare(state)
+	active_snare = state
+	disconnect_list(conns_snare)
+
+	if active_snare then
+		for _, inst in ipairs(workspace:GetDescendants()) do
+			if not active_snare then break end
+			check_snare_instance(inst)
+		end
+
+		local c = workspace.DescendantAdded:Connect(function(inst)
+			if active_snare then
+				check_snare_instance(inst)
+			end
+		end)
+		table.insert(conns_snare, c)
+	end
+end
+
 function ign.cleanup()
 	ign.a90(false)
 	ign.screech(false)
+	ign.snare(false)
 end
 
 return ign
