@@ -1,23 +1,46 @@
 local ts = game:GetService("TweenService")
 local uis = game:GetService("UserInputService")
-local cg = gethui and gethui() or game:GetService("CoreGui")
+local plrs = game:GetService("Players")
 
-if cg:FindFirstChild("ui") then
-	cg:FindFirstChild("ui"):Destroy()
+local function get_container()
+	if gethui then return gethui() end
+	local s, res = pcall(function() return game:GetService("CoreGui") end)
+	if s and res then return res end
+	return plrs.LocalPlayer:WaitForChild("PlayerGui")
 end
+
+local cg = get_container()
+
+local function purge()
+	local targets = {
+		gethui and gethui(),
+		pcall(function() return game:GetService("CoreGui") end) and game:GetService("CoreGui") or nil,
+		plrs.LocalPlayer and plrs.LocalPlayer:FindFirstChild("PlayerGui")
+	}
+	for _, holder in ipairs(targets) do
+		if holder then
+			for _, ch in ipairs(holder:GetChildren()) do
+				if ch.Name == "ui" or ch.Name == "dimhev_ui" then
+					ch:Destroy()
+				end
+			end
+		end
+	end
+end
+purge()
 
 local lib = {}
 lib.__index = lib
 
 local theme = {
-	bg = Color3.fromRGB(15, 11, 22),
-	bg_grad = Color3.fromRGB(9, 7, 14),
-	sec = Color3.fromRGB(22, 16, 32),
-	elm = Color3.fromRGB(26, 20, 38),
-	stroke = Color3.fromRGB(48, 38, 68),
-	accent = Color3.fromRGB(132, 76, 224),
-	txt = Color3.fromRGB(235, 230, 245),
-	sub = Color3.fromRGB(125, 112, 148),
+	bg = Color3.fromRGB(22, 17, 33),
+	bg_grad = Color3.fromRGB(15, 11, 23),
+	sec = Color3.fromRGB(30, 23, 45),
+	elm = Color3.fromRGB(35, 27, 52),
+	stroke = Color3.fromRGB(62, 48, 92),
+	accent = Color3.fromRGB(142, 82, 242),
+	txt = Color3.fromRGB(242, 238, 252),
+	sub = Color3.fromRGB(142, 128, 170),
 	font = Enum.Font.GothamMedium,
 	bold = Enum.Font.GothamBold
 }
@@ -30,18 +53,18 @@ function lib.new()
 	local self = setmetatable({}, lib)
 	
 	local scr = Instance.new("ScreenGui")
-	scr.Name = "dimhev_ui"
+	scr.Name = "ui"
 	scr.ResetOnSpawn = false
 	scr.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	scr.Parent = cg
 	
-	local main = Instance.new("CanvasGroup")
+	local main = Instance.new("Frame")
 	main.Name = "main"
 	main.Size = UDim2.new(0, 420, 0, 340)
 	main.Position = UDim2.new(0.5, -210, 0.5, -170)
 	main.BackgroundColor3 = theme.bg
 	main.BorderSizePixel = 0
-	main.GroupTransparency = 0
+	main.ClipsDescendants = true
 	main.Parent = scr
 
 	local main_grad = Instance.new("UIGradient")
@@ -86,14 +109,14 @@ function lib.new()
 
 	local shimmer = Instance.new("UIGradient")
 	shimmer.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 80, 230)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(235, 195, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(110, 50, 200))
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(150, 85, 245)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(240, 205, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 55, 215))
 	})
 	shimmer.Offset = Vector2.new(-1, 0)
 	shimmer.Parent = author
 
-	ts:Create(shimmer, TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true), {
+	ts:Create(shimmer, TweenInfo.new(2.8, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true), {
 		Offset = Vector2.new(1, 0)
 	}):Play()
 
@@ -196,17 +219,11 @@ function lib.new()
 		
 		if opened then
 			main.Visible = true
-			tw(main, 0.25, {
-				GroupTransparency = 0,
-				Size = orig_size
-			})
-			task.wait(0.25)
+			tw(main, 0.22, {Size = orig_size})
+			task.wait(0.22)
 		else
-			tw(main, 0.2, {
-				GroupTransparency = 1,
-				Size = UDim2.new(orig_size.X.Scale, orig_size.X.Offset, 0, 0)
-			})
-			task.wait(0.2)
+			tw(main, 0.18, {Size = UDim2.new(orig_size.X.Scale, orig_size.X.Offset, 0, 0)})
+			task.wait(0.18)
 			main.Visible = false
 		end
 		toggling = false
@@ -215,10 +232,7 @@ function lib.new()
 	min_btn.MouseButton1Click:Connect(toggle_state)
 
 	cls_btn.MouseButton1Click:Connect(function()
-		tw(main, 0.15, {
-			GroupTransparency = 1,
-			Size = UDim2.new(orig_size.X.Scale, orig_size.X.Offset, 0, 0)
-		})
+		tw(main, 0.15, {Size = UDim2.new(orig_size.X.Scale, orig_size.X.Offset, 0, 0)})
 		task.wait(0.15)
 		scr:Destroy()
 	end)
@@ -280,7 +294,7 @@ function lib:toggle(text, def, cb)
 	local dot = Instance.new("Frame")
 	dot.Size = UDim2.new(0, 14, 0, 14)
 	dot.Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-	dot.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
+	dot.BackgroundColor3 = Color3.fromRGB(245, 245, 250)
 	dot.Parent = switch
 	
 	local d_crn = Instance.new("UICorner")
