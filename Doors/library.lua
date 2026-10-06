@@ -10,11 +10,12 @@ local lib = {}
 lib.__index = lib
 
 local theme = {
-	bg = Color3.fromRGB(14, 11, 20),
-	sec = Color3.fromRGB(20, 16, 28),
+	bg = Color3.fromRGB(15, 11, 22),
+	bg_grad = Color3.fromRGB(9, 7, 14),
+	sec = Color3.fromRGB(22, 16, 32),
 	elm = Color3.fromRGB(26, 20, 38),
 	stroke = Color3.fromRGB(48, 38, 68),
-	accent = Color3.fromRGB(128, 72, 216),
+	accent = Color3.fromRGB(132, 76, 224),
 	txt = Color3.fromRGB(235, 230, 245),
 	sub = Color3.fromRGB(125, 112, 148),
 	font = Enum.Font.GothamMedium,
@@ -25,7 +26,7 @@ local function tw(obj, dur, props)
 	ts:Create(obj, TweenInfo.new(dur, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
 end
 
-function lib.new(title_text)
+function lib.new()
 	local self = setmetatable({}, lib)
 	
 	local scr = Instance.new("ScreenGui")
@@ -42,6 +43,14 @@ function lib.new(title_text)
 	main.BorderSizePixel = 0
 	main.GroupTransparency = 0
 	main.Parent = scr
+
+	local main_grad = Instance.new("UIGradient")
+	main_grad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, theme.bg),
+		ColorSequenceKeypoint.new(1, theme.bg_grad)
+	})
+	main_grad.Rotation = 45
+	main_grad.Parent = main
 	
 	local stroke = Instance.new("UIStroke")
 	stroke.Color = theme.stroke
@@ -54,7 +63,7 @@ function lib.new(title_text)
 
 	local top = Instance.new("Frame")
 	top.Name = "topbar"
-	top.Size = UDim2.new(1, 0, 0, 36)
+	top.Size = UDim2.new(1, 0, 0, 38)
 	top.BackgroundColor3 = theme.sec
 	top.BorderSizePixel = 0
 	top.Parent = main
@@ -64,34 +73,80 @@ function lib.new(title_text)
 	top_str.Thickness = 1
 	top_str.Parent = top
 	
-	local title = Instance.new("TextLabel")
-	title.Text = title_text or "hub"
-	title.Font = theme.bold
-	title.TextSize = 13
-	title.TextColor3 = theme.txt
-	title.Position = UDim2.new(0, 12, 0, 0)
-	title.Size = UDim2.new(0, 0, 1, 0)
-	title.AutomaticSize = Enum.AutomaticSize.X
-	title.BackgroundTransparency = 1
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Parent = top
-	
 	local author = Instance.new("TextLabel")
 	author.Text = "By dimhev"
-	author.Font = theme.font
-	author.TextSize = 11
-	author.TextColor3 = theme.sub
-	author.Position = UDim2.new(1, -12, 0, 0)
-	author.Size = UDim2.new(0, 0, 1, 0)
-	author.AutomaticSize = Enum.AutomaticSize.X
+	author.Font = theme.bold
+	author.TextSize = 13
+	author.TextColor3 = Color3.fromRGB(255, 255, 255)
+	author.Position = UDim2.new(0, 14, 0.5, 0)
+	author.AnchorPoint = Vector2.new(0, 0.5)
+	author.AutomaticSize = Enum.AutomaticSize.XY
 	author.BackgroundTransparency = 1
-	author.TextXAlignment = Enum.TextXAlignment.Right
 	author.Parent = top
+
+	local shimmer = Instance.new("UIGradient")
+	shimmer.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 80, 230)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(235, 195, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(110, 50, 200))
+	})
+	shimmer.Offset = Vector2.new(-1, 0)
+	shimmer.Parent = author
+
+	ts:Create(shimmer, TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true), {
+		Offset = Vector2.new(1, 0)
+	}):Play()
+
+	local btns_wrap = Instance.new("Frame")
+	btns_wrap.Size = UDim2.new(0, 54, 1, 0)
+	btns_wrap.Position = UDim2.new(1, -62, 0, 0)
+	btns_wrap.BackgroundTransparency = 1
+	btns_wrap.Parent = top
+
+	local min_btn = Instance.new("TextButton")
+	min_btn.Size = UDim2.new(0, 22, 0, 22)
+	min_btn.Position = UDim2.new(0, 0, 0.5, -11)
+	min_btn.BackgroundColor3 = theme.elm
+	min_btn.Text = "-"
+	min_btn.Font = theme.bold
+	min_btn.TextSize = 13
+	min_btn.TextColor3 = theme.sub
+	min_btn.AutoButtonColor = false
+	min_btn.Parent = btns_wrap
+
+	local min_crn = Instance.new("UICorner")
+	min_crn.CornerRadius = UDim.new(0, 4)
+	min_crn.Parent = min_btn
+
+	local min_stk = Instance.new("UIStroke")
+	min_stk.Color = theme.stroke
+	min_stk.Thickness = 1
+	min_stk.Parent = min_btn
+
+	local cls_btn = Instance.new("TextButton")
+	cls_btn.Size = UDim2.new(0, 22, 0, 22)
+	cls_btn.Position = UDim2.new(0, 28, 0.5, -11)
+	cls_btn.BackgroundColor3 = theme.elm
+	cls_btn.Text = "x"
+	cls_btn.Font = theme.bold
+	cls_btn.TextSize = 11
+	cls_btn.TextColor3 = theme.sub
+	cls_btn.AutoButtonColor = false
+	cls_btn.Parent = btns_wrap
+
+	local cls_crn = Instance.new("UICorner")
+	cls_crn.CornerRadius = UDim.new(0, 4)
+	cls_crn.Parent = cls_btn
+
+	local cls_stk = Instance.new("UIStroke")
+	cls_stk.Color = theme.stroke
+	cls_stk.Thickness = 1
+	cls_stk.Parent = cls_btn
 
 	local cont = Instance.new("ScrollingFrame")
 	cont.Name = "content"
-	cont.Size = UDim2.new(1, 0, 1, -36)
-	cont.Position = UDim2.new(0, 0, 0, 36)
+	cont.Size = UDim2.new(1, 0, 1, -38)
+	cont.Position = UDim2.new(0, 0, 0, 38)
 	cont.BackgroundTransparency = 1
 	cont.BorderSizePixel = 0
 	cont.ScrollBarThickness = 2
@@ -156,6 +211,17 @@ function lib.new(title_text)
 		end
 		toggling = false
 	end
+
+	min_btn.MouseButton1Click:Connect(toggle_state)
+
+	cls_btn.MouseButton1Click:Connect(function()
+		tw(main, 0.15, {
+			GroupTransparency = 1,
+			Size = UDim2.new(orig_size.X.Scale, orig_size.X.Offset, 0, 0)
+		})
+		task.wait(0.15)
+		scr:Destroy()
+	end)
 
 	uis.InputBegan:Connect(function(inp, gpe)
 		if not gpe and inp.KeyCode == Enum.KeyCode.RightShift then
