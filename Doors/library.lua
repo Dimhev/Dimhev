@@ -20,7 +20,7 @@ local function purge()
 	for _, holder in ipairs(targets) do
 		if holder then
 			for _, ch in ipairs(holder:GetChildren()) do
-				if ch.Name == "ui" or ch.Name == "dimhev_ui" then
+				if ch.Name == "ui" then
 					ch:Destroy()
 				end
 			end
