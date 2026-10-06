@@ -35,12 +35,9 @@ end
 
 local function get_a90_frame()
 	local pgui = lp:FindFirstChild("PlayerGui")
-	if not pgui then return nil end
-	local mui = pgui:FindFirstChild("MainUI")
-	if not mui then return nil end
-	local jmp = mui:FindFirstChild("Jumpscare")
-	if not jmp then return nil end
-	return jmp:FindFirstChild("Jumpscare_A90")
+	local mui = pgui and pgui:FindFirstChild("MainUI")
+	local jmp = mui and mui:FindFirstChild("Jumpscare")
+	return jmp and jmp:FindFirstChild("Jumpscare_A90")
 end
 
 function ign.a90(state)
@@ -96,17 +93,26 @@ function ign.screech(state)
 		end)
 		table.insert(conns_screech, c1)
 		
-		local cam = ws.CurrentCamera
-		if cam then
-			local c2 = cam.ChildAdded:Connect(function(child)
+		local function hook_camera(cam)
+			if not cam then return end
+			local c = cam.ChildAdded:Connect(function(child)
 				if active_screech and (child.Name == "Screech" or child.Name == "ScreechRetro") then
 					task.defer(function()
 						child:Destroy()
 					end)
 				end
 			end)
-			table.insert(conns_screech, c2)
+			table.insert(conns_screech, c)
 		end
+		
+		hook_camera(ws.CurrentCamera)
+		
+		local c2 = ws:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+			if active_screech then
+				hook_camera(ws.CurrentCamera)
+			end
+		end)
+		table.insert(conns_screech, c2)
 	else
 		if smod then
 			smod:SetAttribute("Static", nil)
@@ -114,25 +120,12 @@ function ign.screech(state)
 	end
 end
 
-local function disable_snare_hitbox(hitbox)
-	if hitbox and hitbox:IsA("BasePart") and not hitbox:GetAttribute("SnareDisabled") then
-		hitbox:SetAttribute("SnareDisabled", true)
-		pcall(function()
-			hitbox.CanTouch = false
-		end)
-	end
-end
-
-local function check_snare_instance(inst)
+local function disable_snare(inst)
 	if not inst then return end
-
-	if inst.Name == "Hitbox" and inst:FindFirstAncestor("Snare") then
-		disable_snare_hitbox(inst)
-	elseif inst.Name == "Snare" then
-		local hb = inst:FindFirstChild("Hitbox", true)
-		if hb then
-			disable_snare_hitbox(hb)
-		end
+	local hb = inst.Name == "Hitbox" and inst or inst:FindFirstChild("Hitbox", true)
+	if hb and hb:IsA("BasePart") and not hb:GetAttribute("SnareDisabled") then
+		hb:SetAttribute("SnareDisabled", true)
+		hb.CanTouch = false
 	end
 end
 
@@ -141,14 +134,17 @@ function ign.snare(state)
 	disconnect_list(conns_snare)
 
 	if active_snare then
-		for _, inst in ipairs(ws:GetDescendants()) do
+		local rooms = ws:FindFirstChild("CurrentRooms") or ws
+		for _, inst in ipairs(rooms:GetDescendants()) do
 			if not active_snare then break end
-			check_snare_instance(inst)
+			if inst.Name == "Snare" or (inst.Name == "Hitbox" and inst:FindFirstAncestor("Snare")) then
+				disable_snare(inst)
+			end
 		end
 
-		local c = ws.DescendantAdded:Connect(function(inst)
-			if active_snare then
-				check_snare_instance(inst)
+		local c = (ws:FindFirstChild("CurrentRooms") or ws).DescendantAdded:Connect(function(inst)
+			if active_snare and (inst.Name == "Snare" or inst.Name == "Hitbox") then
+				disable_snare(inst)
 			end
 		end)
 		table.insert(conns_snare, c)
@@ -173,12 +169,17 @@ function ign.eyes(state)
 			fake_motor.Parent = remotes
 		end
 
+		local last_send = 0
 		local c = run.RenderStepped:Connect(function()
 			if active_eyes and has_eyes() then
-				if is_old then
-					real_motor:FireServer(0, -90, 0, false)
-				else
-					real_motor:FireServer(-650)
+				local now = os.clock()
+				if now - last_send >= 0.04 then
+					last_send = now
+					if is_old then
+						real_motor:FireServer(0, -90, 0, false)
+					else
+						real_motor:FireServer(-650)
+					end
 				end
 			end
 		end)
