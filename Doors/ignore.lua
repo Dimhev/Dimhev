@@ -1,11 +1,17 @@
 local plrs = game:GetService("Players")
+local rep = game:GetService("ReplicatedStorage")
 local lp = plrs.LocalPlayer
 
-local ign = {}
-local conns = {}
-local active = false
+local remotes = rep:WaitForChild("RemotesFolder")
+local screech_rem = remotes:WaitForChild("Screech")
 
-local function get_frame()
+local ign = {}
+local conns_a90 = {}
+local conns_screech = {}
+local active_a90 = false
+local active_screech = false
+
+local function get_a90_frame()
 	local pgui = lp:FindFirstChild("PlayerGui")
 	if not pgui then return nil end
 	local mui = pgui:FindFirstChild("MainUI")
@@ -15,44 +21,89 @@ local function get_frame()
 	return jmp:FindFirstChild("Jumpscare_A90")
 end
 
-local function disconnect_all()
-	for _, c in ipairs(conns) do
+local function get_screech_module()
+	local pgui = lp:FindFirstChild("PlayerGui")
+	local rl = pgui and pgui:FindFirstChild("MainUI")
+	rl = rl and rl:FindFirstChild("Initiator")
+	rl = rl and rl:FindFirstChild("Main_Game")
+	rl = rl and rl:FindFirstChild("RemoteListener")
+	local mods = rl and rl:FindFirstChild("Modules")
+	return mods and mods:FindFirstChild("Screech")
+end
+
+local function disconnect_list(list)
+	for _, c in ipairs(list) do
 		if typeof(c) == "RBXScriptConnection" and c.Connected then
 			c:Disconnect()
 		end
 	end
-	table.clear(conns)
+	table.clear(list)
 end
 
-function ign.set(state)
-	active = state
-	disconnect_all()
+function ign.a90(state)
+	active_a90 = state
+	disconnect_list(conns_a90)
 	
-	if active then
+	if active_a90 then
 		lp:SetAttribute("Invincibility", true)
-		
-		local frame = get_frame()
+		local frame = get_a90_frame()
 		if frame then
 			frame.Visible = false
 			local c = frame:GetPropertyChangedSignal("Visible"):Connect(function()
-				if active and frame.Visible then
+				if active_a90 and frame.Visible then
 					frame.Visible = false
 				end
 			end)
-			table.insert(conns, c)
+			table.insert(conns_a90, c)
 		end
 	else
 		lp:SetAttribute("Invincibility", nil)
-		local frame = get_frame()
+		local frame = get_a90_frame()
 		if frame then
 			frame.Visible = false
+		end
+	end
+end
+
+function ign.screech(state)
+	active_screech = state
+	disconnect_list(conns_screech)
+	
+	local smod = get_screech_module()
+	
+	if active_screech then
+		if smod then
+			smod:SetAttribute("Static", true)
+		end
+		
+		local c1 = screech_rem.OnClientEvent:Connect(function()
+			if active_screech then
+				screech_rem:FireServer(true)
+			end
+		end)
+		table.insert(conns_screech, c1)
+		
+		local cam = workspace.CurrentCamera
+		if cam then
+			local c2 = cam.ChildAdded:Connect(function(child)
+				if active_screech and (child.Name == "Screech" or child.Name == "ScreechRetro") then
+					task.defer(function()
+						child:Destroy()
+					end)
+				end
+			end)
+			table.insert(conns_screech, c2)
+		end
+	else
+		if smod then
+			smod:SetAttribute("Static", nil)
 		end
 	end
 end
 
 function ign.cleanup()
-	ign.set(false)
-	disconnect_all()
+	ign.a90(false)
+	ign.screech(false)
 end
 
 return ign
