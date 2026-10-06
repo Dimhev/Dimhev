@@ -104,31 +104,24 @@ function ign.screech(state)
 	end
 end
 
-local function process_snare_hitbox(hitbox)
-	if not hitbox or not hitbox:IsA("BasePart") then return end
-	if hitbox:GetAttribute("SnareProcessed") then return end
-	hitbox:SetAttribute("SnareProcessed", true)
-
-	pcall(function()
-		hitbox.CanTouch = false
-	end)
-
-	task.defer(function()
-		if hitbox and hitbox.Parent then
-			hitbox:Destroy()
-		end
-	end)
+local function disable_snare_hitbox(hitbox)
+	if hitbox and hitbox:IsA("BasePart") and not hitbox:GetAttribute("SnareDisabled") then
+		hitbox:SetAttribute("SnareDisabled", true)
+		pcall(function()
+			hitbox.CanTouch = false
+		end)
+	end
 end
 
 local function check_snare_instance(inst)
 	if not inst then return end
 
 	if inst.Name == "Hitbox" and inst:FindFirstAncestor("Snare") then
-		process_snare_hitbox(inst)
+		disable_snare_hitbox(inst)
 	elseif inst.Name == "Snare" then
 		local hb = inst:FindFirstChild("Hitbox", true)
 		if hb then
-			process_snare_hitbox(hb)
+			disable_snare_hitbox(hb)
 		end
 	end
 end
