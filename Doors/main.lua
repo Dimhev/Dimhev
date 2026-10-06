@@ -1,22 +1,12 @@
-local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/refs/heads/main/Doors/library.lua"))()
+local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/library.luau"))()
+local ign = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/ignore.luau"))()
 
-local wnd = lib.new("internal test")
+local wnd = lib.new()
 
-wnd:toggle("fly hack", false, function(val)
-	print("fly:", val)
+wnd:toggle("Delete A-90", false, function(val)
+	ign.set(val)
 end)
 
-wnd:toggle("speed boost", true, function(val)
-	print("speed:", val)
-end)
-
-wnd:input("speed value", "16", "32", function(val)
-	local num = tonumber(val)
-	if num then
-		print("set speed to", num)
-	end
-end)
-
-wnd:input("teleport to", "player name", "", function(val)
-	print("target:", val)
+wnd.gui.Destroying:Connect(function()
+	ign.cleanup()
 end)
