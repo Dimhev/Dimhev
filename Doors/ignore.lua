@@ -21,6 +21,7 @@ local conns_giggle = {}
 local conns_snare = {}
 local conns_eyes = {}
 local conns_speed = {}
+local conns_rush = {}
 
 local active_a90 = false
 local active_screech = false
@@ -28,10 +29,14 @@ local active_giggle = false
 local active_snare = false
 local active_eyes = false
 local active_speed = false
+local active_rush = false
 
 local speed_boost = 15
 local MIN_BOOST = 0
 local MAX_BOOST = 50
+
+local col_clone = nil
+local original_c1 = nil
 
 local function disconnect_list(list)
 	for _, c in ipairs(list) do
@@ -41,6 +46,51 @@ local function disconnect_list(list)
 	end
 	table.clear(list)
 end
+
+local function is_crouching(char)
+	if not char then return false end
+	local col = char:FindFirstChild("CollisionPart") or char:FindFirstChild("Collision")
+	return (col and col.CollisionGroup == "PlayerCrouching") or false
+end
+
+local function cleanup_collision_clones()
+	if col_clone and col_clone.Parent then
+		col_clone:Destroy()
+		col_clone = nil
+	end
+end
+
+local function setup_collision_clones(char)
+	cleanup_collision_clones()
+	if not char then return end
+
+	local real_col = char:WaitForChild("Collision", 5)
+	if not real_col then return end
+
+	local lower_torso = char:WaitForChild("LowerTorso", 5)
+	local root_joint = lower_torso and lower_torso:WaitForChild("Root", 5)
+	if root_joint then
+		original_c1 = root_joint.C1
+	end
+
+	col_clone = real_col:Clone()
+	col_clone.Name = "CollisionClone"
+	col_clone.Parent = char
+	col_clone.Massless = true
+	col_clone.CanCollide = true
+
+	local clone_crouch = col_clone:FindFirstChild("CollisionCrouch")
+	if clone_crouch then
+		clone_crouch.CanCollide = false
+	end
+end
+
+if lp.Character then
+	setup_collision_clones(lp.Character)
+end
+lp.CharacterAdded:Connect(function(new_char)
+	setup_collision_clones(new_char)
+end)
 
 local function get_a90_frame()
 	local pgui = lp:FindFirstChild("PlayerGui")
@@ -246,11 +296,6 @@ function ign.eyes(state)
 	end
 end
 
-local function is_crouching(char)
-	local col = char and (char:FindFirstChild("CollisionPart") or char:FindFirstChild("Collision"))
-	return col and col.CollisionGroup == "PlayerCrouching" or false
-end
-
 local function get_base_speed(char)
 	local speed = 15
 	if is_crouching(char) then
@@ -292,9 +337,10 @@ function ign.speed(state, boost)
 				hum.WalkSpeed = get_base_speed(c) + speed_boost
 			end
 
-			if crouch_rem and speed_boost > 0 and (tick() - last_crouch > 0.1) then
+			if crouch_rem and (tick() - last_crouch > 0.15) then
 				last_crouch = tick()
-				crouch_rem:FireServer(true, true)
+				local sending_crouch = active_rush or is_crouching(c)
+				crouch_rem:FireServer(sending_crouch, true)
 			end
 		end)
 		table.insert(conns_speed, c_render)
@@ -316,6 +362,97 @@ function ign.speed(state, boost)
 	end
 end
 
+function ign.rush(state)
+	active_rush = state
+	disconnect_list(conns_rush)
+
+	local char = lp.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local real_col = char and char:FindFirstChild("Collision")
+	local lower_torso = char and char:FindFirstChild("LowerTorso")
+	local root_joint = lower_torso and lower_torso:FindFirstChild("Root")
+
+	if active_rush then
+		if hum and root then
+			root.CFrame = root.CFrame * CFrame.new(0, -2.346, 0)
+			hum.HipHeight = 0.05
+		end
+
+		if crouch_rem then
+			crouch_rem:FireServer(true, true)
+		end
+
+		local c_render = run.RenderStepped:Connect(function()
+			if not active_rush then return end
+			local c = lp.Character
+			if not c then return end
+
+			local r = c:FindFirstChild("HumanoidRootPart")
+			local h = c:FindFirstChildOfClass("Humanoid")
+			local col = c:FindFirstChild("Collision")
+			local lt = c:FindFirstChild("LowerTorso")
+			local rj = lt and lt:FindFirstChild("Root")
+			if not r or not col then return end
+
+			local crouching = is_crouching(c)
+
+			col.CanCollide = false
+			col.Position = r.Position + Vector3.new(0, 2.328, 0)
+
+			if col_clone and col_clone.Parent then
+				local clone_crouch = col_clone:FindFirstChild("CollisionCrouch")
+
+				if crouching then
+					col_clone.CanCollide = false
+					if clone_crouch then
+						clone_crouch.CanCollide = true
+						clone_crouch.Position = r.Position + Vector3.new(0, 0.75, 0)
+					end
+				else
+					col_clone.CanCollide = true
+					col_clone.Position = r.Position + Vector3.new(0, 1.75, 0)
+					if clone_crouch then
+						clone_crouch.CanCollide = false
+					end
+				end
+			end
+
+			if rj and original_c1 then
+				rj.C1 = original_c1 * CFrame.new(0, -2.346, 0)
+			end
+		end)
+		table.insert(conns_rush, c_render)
+	else
+		if hum and root then
+			root.CFrame = root.CFrame * CFrame.new(0, 2.346, 0)
+			hum.HipHeight = 2.396
+		end
+
+		if real_col and root then
+			real_col.CanCollide = true
+			real_col.Position = root.Position + Vector3.new(0, 0.18, 0)
+		end
+
+		if col_clone and root then
+			col_clone.CanCollide = true
+			col_clone.Position = root.Position + Vector3.new(0, 0.18, 0)
+			local clone_crouch = col_clone:FindFirstChild("CollisionCrouch")
+			if clone_crouch then
+				clone_crouch.CanCollide = false
+			end
+		end
+
+		if root_joint and original_c1 then
+			root_joint.C1 = original_c1
+		end
+
+		if crouch_rem then
+			crouch_rem:FireServer(is_crouching(char), true)
+		end
+	end
+end
+
 function ign.cleanup()
 	ign.a90(false)
 	ign.screech(false)
@@ -323,6 +460,8 @@ function ign.cleanup()
 	ign.snare(false)
 	ign.eyes(false)
 	ign.speed(false)
+	ign.rush(false)
+	cleanup_collision_clones()
 end
 
 return ign
