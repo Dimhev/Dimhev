@@ -17,12 +17,14 @@ local is_old = floor_val and (floor_val.Value == "Fools" or floor_val.Value == "
 local ign = {}
 local conns_a90 = {}
 local conns_screech = {}
+local conns_giggle = {}
 local conns_snare = {}
 local conns_eyes = {}
 local conns_speed = {}
 
 local active_a90 = false
 local active_screech = false
+local active_giggle = false
 local active_snare = false
 local active_eyes = false
 local active_speed = false
@@ -124,6 +126,38 @@ function ign.screech(state)
 		if smod then
 			smod:SetAttribute("Static", nil)
 		end
+	end
+end
+
+local function disable_giggle(inst)
+	if not inst then return end
+	local hb = inst.Name == "Hitbox" and inst or inst:FindFirstChild("Hitbox", true)
+	if hb and hb:IsA("BasePart") and not hb:GetAttribute("GiggleDisabled") then
+		hb:SetAttribute("GiggleDisabled", true)
+		hb.CanTouch = false
+	end
+end
+
+function ign.giggle(state)
+	active_giggle = state
+	disconnect_list(conns_giggle)
+
+	if active_giggle then
+		local rooms = ws:FindFirstChild("CurrentRooms") or ws
+
+		for _, inst in ipairs(rooms:GetDescendants()) do
+			if not active_giggle then break end
+			if inst.Name == "GiggleCeiling" or (inst.Name == "Hitbox" and inst:FindFirstAncestor("GiggleCeiling")) then
+				disable_giggle(inst)
+			end
+		end
+
+		local c = (ws:FindFirstChild("CurrentRooms") or ws).DescendantAdded:Connect(function(inst)
+			if active_giggle and (inst.Name == "GiggleCeiling" or (inst.Name == "Hitbox" and inst:FindFirstAncestor("GiggleCeiling"))) then
+				disable_giggle(inst)
+			end
+		end)
+		table.insert(conns_giggle, c)
 	end
 end
 
@@ -285,6 +319,7 @@ end
 function ign.cleanup()
 	ign.a90(false)
 	ign.screech(false)
+	ign.giggle(false)
 	ign.snare(false)
 	ign.eyes(false)
 	ign.speed(false)
