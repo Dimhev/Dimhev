@@ -11,6 +11,10 @@ wnd:toggle("Delete Screech", false, function(val)
 	ign.screech(val)
 end)
 
+wnd:toggle("Ignore Giggle", false, function(val)
+	ign.giggle(val)
+end)
+
 wnd:toggle("Ignore Snare", false, function(val)
 	ign.snare(val)
 end)
@@ -19,6 +23,8 @@ wnd:toggle("Ignore Eyes", false, function(val)
 	ign.eyes(val)
 end)
 
+wnd:warn("Warning: This feature is highly experimental and unstable. May cause network drops and does not guarantee damage immunity.")
+
 wnd:toggle("Speed Boost", false, function(val)
 	ign.speed(val)
 end)
@@ -26,8 +32,6 @@ end)
 wnd:slider("Speed Value", 0, 50, 15, function(val)
 	ign.set_speed(val)
 end)
-
-wnd:warn("Warning: This feature is highly experimental and unstable. May cause network drops and does not guarantee damage immunity.")
 
 wnd.gui.Destroying:Connect(function()
 	ign.cleanup()
