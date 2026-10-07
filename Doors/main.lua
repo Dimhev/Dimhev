@@ -19,11 +19,15 @@ wnd:toggle("Ignore Snare", false, function(val)
 	ign.snare(val)
 end)
 
-wnd:toggle("Ignore Eyes", false, function(val)
+wnd:toggle("Ignore Eyes&Lookman", false, function(val)
 	ign.eyes(val)
 end)
 
 wnd:warn("Warning: This feature is highly experimental and unstable. May cause network drops and does not guarantee damage immunity.")
+
+wnd:toggle("Ignore Rush", false, function(val)
+	ign.rush(val)
+end)
 
 wnd:toggle("Speed Boost", false, function(val)
 	ign.speed(val)
