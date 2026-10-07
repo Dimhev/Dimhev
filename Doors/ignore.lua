@@ -19,6 +19,7 @@ local conns_a90 = {}
 local conns_screech = {}
 local conns_giggle = {}
 local conns_snare = {}
+local conns_dupe = {}
 local conns_eyes = {}
 local conns_speed = {}
 local conns_rush = {}
@@ -27,6 +28,7 @@ local active_a90 = false
 local active_screech = false
 local active_giggle = false
 local active_snare = false
+local active_dupe = false
 local active_eyes = false
 local active_speed = false
 local active_rush = false
@@ -36,6 +38,7 @@ local MIN_BOOST = 0
 local MAX_BOOST = 50
 
 local col_clone = nil
+local col_part_clone = nil
 local original_c1 = nil
 
 local function disconnect_list(list)
@@ -52,45 +55,6 @@ local function is_crouching(char)
 	local col = char:FindFirstChild("CollisionPart") or char:FindFirstChild("Collision")
 	return (col and col.CollisionGroup == "PlayerCrouching") or false
 end
-
-local function cleanup_collision_clones()
-	if col_clone and col_clone.Parent then
-		col_clone:Destroy()
-		col_clone = nil
-	end
-end
-
-local function setup_collision_clones(char)
-	cleanup_collision_clones()
-	if not char then return end
-
-	local real_col = char:WaitForChild("Collision", 5)
-	if not real_col then return end
-
-	local lower_torso = char:WaitForChild("LowerTorso", 5)
-	local root_joint = lower_torso and lower_torso:WaitForChild("Root", 5)
-	if root_joint then
-		original_c1 = root_joint.C1
-	end
-
-	col_clone = real_col:Clone()
-	col_clone.Name = "CollisionClone"
-	col_clone.Parent = char
-	col_clone.Massless = true
-	col_clone.CanCollide = true
-
-	local clone_crouch = col_clone:FindFirstChild("CollisionCrouch")
-	if clone_crouch then
-		clone_crouch.CanCollide = false
-	end
-end
-
-if lp.Character then
-	setup_collision_clones(lp.Character)
-end
-lp.CharacterAdded:Connect(function(new_char)
-	setup_collision_clones(new_char)
-end)
 
 local function get_a90_frame()
 	local pgui = lp:FindFirstChild("PlayerGui")
@@ -242,6 +206,56 @@ function ign.snare(state)
 	end
 end
 
+local function disable_dupe(inst)
+	if not inst then return end
+	local door = nil
+	if inst.Name == "DoorFake" or inst.Name == "FakeDoor" then
+		door = inst
+	elseif inst.Name == "Hidden" and inst.Parent and (inst.Parent.Name == "DoorFake" or inst.Parent.Name == "FakeDoor") then
+		door = inst.Parent
+	end
+
+	if door then
+		local hidden = door:FindFirstChild("Hidden")
+		if hidden and hidden:IsA("BasePart") and not hidden:GetAttribute("DupeDisabled") then
+			hidden:SetAttribute("DupeDisabled", true)
+			hidden.CanTouch = false
+		end
+	end
+end
+
+function ign.dupe(state)
+	active_dupe = state
+	disconnect_list(conns_dupe)
+
+	local rooms = ws:FindFirstChild("CurrentRooms") or ws
+
+	if active_dupe then
+		for _, inst in ipairs(rooms:GetDescendants()) do
+			if not active_dupe then break end
+			if inst.Name == "DoorFake" or inst.Name == "FakeDoor" or inst.Name == "Hidden" then
+				disable_dupe(inst)
+			end
+		end
+
+		local c = rooms.DescendantAdded:Connect(function(inst)
+			if active_dupe and (inst.Name == "DoorFake" or inst.Name == "FakeDoor" or inst.Name == "Hidden") then
+				disable_dupe(inst)
+			end
+		end)
+		table.insert(conns_dupe, c)
+	else
+		for _, inst in ipairs(rooms:GetDescendants()) do
+			if inst.Name == "Hidden" and inst.Parent and (inst.Parent.Name == "DoorFake" or inst.Parent.Name == "FakeDoor") then
+				if inst:IsA("BasePart") and inst:GetAttribute("DupeDisabled") then
+					inst:SetAttribute("DupeDisabled", nil)
+					inst.CanTouch = true
+				end
+			end
+		end
+	end
+end
+
 local function get_eyes()
 	return ws:FindFirstChild("Eyes")
 		or ws:FindFirstChild("Lookman")
@@ -361,10 +375,6 @@ function ign.speed(state, boost)
 		end
 	end
 end
-
-local col_clone = nil
-local col_part_clone = nil
-local original_c1 = nil
 
 local function cleanup_rush_clones()
 	if col_clone and col_clone.Parent then
@@ -520,10 +530,11 @@ function ign.cleanup()
 	ign.screech(false)
 	ign.giggle(false)
 	ign.snare(false)
+	ign.dupe(false)
 	ign.eyes(false)
 	ign.speed(false)
 	ign.rush(false)
-	cleanup_collision_clones()
+	cleanup_rush_clones()
 end
 
 return ign
