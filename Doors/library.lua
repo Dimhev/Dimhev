@@ -435,4 +435,104 @@ function lib:danger(text)
 end
 lib.alert = lib.danger
 
+function lib:slider(text, min, max, def, cb)
+	cb = cb or function() end
+	min = min or 0
+	max = max or 50
+	def = math.clamp(def or min, min, max)
+	
+	local box = Instance.new("Frame")
+	box.Size = UDim2.new(1, -24, 0, 48)
+	box.BackgroundColor3 = theme.elm
+	box.Parent = self.cont
+	
+	local crn = Instance.new("UICorner")
+	crn.CornerRadius = UDim.new(0, 6)
+	crn.Parent = box
+	
+	local stk = Instance.new("UIStroke")
+	stk.Color = theme.stroke
+	stk.Thickness = 1
+	stk.Parent = box
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Text = text
+	lbl.Font = theme.font
+	lbl.TextSize = 12
+	lbl.TextColor3 = theme.txt
+	lbl.Position = UDim2.new(0, 10, 0, 6)
+	lbl.Size = UDim2.new(1, -60, 0, 16)
+	lbl.BackgroundTransparency = 1
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Parent = box
+
+	local val_lbl = Instance.new("TextLabel")
+	val_lbl.Text = string.format("+%d", def)
+	val_lbl.Font = theme.bold
+	val_lbl.TextSize = 12
+	val_lbl.TextColor3 = theme.sub
+	val_lbl.Position = UDim2.new(1, -50, 0, 6)
+	val_lbl.Size = UDim2.new(0, 40, 0, 16)
+	val_lbl.BackgroundTransparency = 1
+	val_lbl.TextXAlignment = Enum.TextXAlignment.Right
+	val_lbl.Parent = box
+
+	local track = Instance.new("TextButton")
+	track.Name = "track"
+	track.Size = UDim2.new(1, -20, 0, 8)
+	track.Position = UDim2.new(0, 10, 0, 28)
+	track.BackgroundColor3 = theme.sec
+	track.AutoButtonColor = false
+	track.Text = ""
+	track.Parent = box
+
+	local t_crn = Instance.new("UICorner")
+	t_crn.CornerRadius = UDim.new(1, 0)
+	t_crn.Parent = track
+
+	local pct = (def - min) / (max - min)
+	local fill = Instance.new("Frame")
+	fill.Name = "fill"
+	fill.Size = UDim2.new(pct, 0, 1, 0)
+	fill.BackgroundColor3 = theme.accent
+	fill.BorderSizePixel = 0
+	fill.Parent = track
+
+	local f_crn = Instance.new("UICorner")
+	f_crn.CornerRadius = UDim.new(1, 0)
+	f_crn.Parent = fill
+
+	local dragging = false
+
+	local function update(input)
+		local mouse_x = input.Position.X
+		local track_x = track.AbsolutePosition.X
+		local track_w = track.AbsoluteSize.X
+		local ratio = math.clamp((mouse_x - track_x) / track_w, 0, 1)
+		fill.Size = UDim2.new(ratio, 0, 1, 0)
+		local val = math.floor(min + (max - min) * ratio)
+		val_lbl.Text = string.format("+%d", val)
+		cb(val)
+	end
+
+	track.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			update(input)
+		end
+	end)
+
+	uis.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			update(input)
+		end
+	end)
+
+	uis.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+end
+
 return lib
