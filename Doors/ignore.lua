@@ -362,14 +362,18 @@ function ign.speed(state, boost)
 	end
 end
 
-local ray_params = RaycastParams.new()
-ray_params.FilterType = Enum.RaycastFilterType.Exclude
-ray_params.IgnoreWater = true
+local col_clone = nil
+local col_part_clone = nil
+local original_c1 = nil
 
 local function cleanup_rush_clones()
 	if col_clone and col_clone.Parent then
 		col_clone:Destroy()
 		col_clone = nil
+	end
+	if col_part_clone and col_part_clone.Parent then
+		col_part_clone:Destroy()
+		col_part_clone = nil
 	end
 end
 
@@ -381,6 +385,7 @@ function ign.rush(state)
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	local real_col = char and char:FindFirstChild("Collision")
+	local real_col_part = char and (char:FindFirstChild("CollisionPart") or real_col)
 	local lower_torso = char and char:FindFirstChild("LowerTorso")
 	local root_joint = lower_torso and lower_torso:FindFirstChild("Root")
 
@@ -395,18 +400,20 @@ function ign.rush(state)
 		end
 
 		cleanup_rush_clones()
+
 		col_clone = real_col:Clone()
 		col_clone.Name = "CollisionClone"
-		col_clone.Parent = char
 		col_clone.Massless = true
-		col_clone.CanCollide = true
+		col_clone.Parent = char
 
-		col_clone.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0, 0, 1, 1)
+		col_part_clone = real_col_part:Clone()
+		col_part_clone.Name = "CollisionPartClone"
+		col_part_clone.CanCollide = false
+		col_part_clone.Massless = true
+		col_part_clone.Parent = char
 
-		local clone_crouch = col_clone:FindFirstChild("CollisionCrouch")
-		if clone_crouch then
-			clone_crouch.CanCollide = false
-			clone_crouch.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0, 0, 1, 1)
+		if col_part_clone:FindFirstChild("CollisionCrouch") then
+			col_part_clone.CollisionCrouch:Destroy()
 		end
 
 		root.CFrame = root.CFrame * CFrame.new(0, -2.346, 0)
@@ -416,55 +423,68 @@ function ign.rush(state)
 			crouch_rem:FireServer(true, true)
 		end
 
-		ray_params.FilterDescendantsInstances = { char }
+		local last_crouch_send = 0
 
 		local c_render = run.RenderStepped:Connect(function()
 			if not active_rush then return end
 			local c = lp.Character
-			local r = c and c:FindFirstChild("HumanoidRootPart")
-			local h = c and c:FindFirstChildOfClass("Humanoid")
-			local col = c and c:FindFirstChild("Collision")
-			local lt = c and c:FindFirstChild("LowerTorso")
+			if not c then return end
+
+			local r = c:FindFirstChild("HumanoidRootPart")
+			local h = c:FindFirstChildOfClass("Humanoid")
+			local col = c:FindFirstChild("Collision")
+			local col_p = c:FindFirstChild("CollisionPart")
+			local lt = c:FindFirstChild("LowerTorso")
 			local rj = lt and lt:FindFirstChild("Root")
 			if not r or not col or not col_clone then return end
 
-			local crouching = is_crouching(c)
-
-			col.CanCollide = false
-			col.Position = r.Position + Vector3.new(0, 2.328, 0)
-
-			local step_lift = 0
-			local move_dir = h and h.MoveDirection or Vector3.zero
-
-			if move_dir.Magnitude > 0.05 then
-				local forward_pos = r.Position + (move_dir.Unit * 1.1) + Vector3.new(0, 0.4, 0)
-				local hit = ws:Raycast(forward_pos, Vector3.new(0, -1.8, 0), ray_params)
-
-				if hit and hit.Instance and hit.Instance.CanCollide then
-					local ground_diff = hit.Position.Y - (r.Position.Y - 1.2)
-					if ground_diff > 0.08 and ground_diff < 1.3 then
-						step_lift = ground_diff
-					end
+			r.CanCollide = false
+			for _, part in ipairs(c:GetChildren()) do
+				if part:IsA("BasePart") and part ~= col_clone and part ~= col_clone:FindFirstChild("CollisionCrouch") then
+					part.CanCollide = false
 				end
 			end
-				
-			local cl_crouch = col_clone:FindFirstChild("CollisionCrouch")
-			if crouching then
-				col_clone.CanCollide = false
-				if cl_crouch then
-					cl_crouch.CanCollide = true
-					cl_crouch.Position = r.Position + Vector3.new(0, 0.75 + step_lift, 0)
-				end
+
+			col.CanCollide = false
+			if col:FindFirstChild("CollisionCrouch") then
+				col.CollisionCrouch.CanCollide = false
+			end
+
+			local is_crouch = is_crouching(c)
+
+			local clone_crouch = col_clone:FindFirstChild("CollisionCrouch")
+			if clone_crouch then
+				col_clone.CanCollide = not is_crouch
+				clone_crouch.CanCollide = is_crouch
 			else
-				col_clone.CanCollide = true
-				col_clone.Position = r.Position + Vector3.new(0, 1.75 + step_lift, 0)
-				if cl_crouch then
-					cl_crouch.CanCollide = false
-				end
+				col_clone.CanCollide = not is_crouch
 			end
 
 			if rj and original_c1 then
 				rj.C1 = original_c1 * CFrame.new(0, -2.346, 0)
+			end
+
+			local spoof_y = 2.328
+			col.Position = r.Position + Vector3.new(0, spoof_y, 0)
+			if col_p then
+				col_p.Position = r.Position + Vector3.new(0, spoof_y, 0)
+			end
+
+			if col:FindFirstChild("CollisionCrouch") and clone_crouch then
+				col.CollisionCrouch.Position = r.Position + Vector3.new(0, 1.328, 0)
+				clone_crouch.CollisionGroup = col.CollisionCrouch.CollisionGroup
+			end
+
+			if clone_crouch then
+				clone_crouch.Position = r.Position + Vector3.new(0, 0.75, 0)
+			end
+
+			col_clone.CollisionGroup = col.CollisionGroup
+			col_clone.Position = r.Position + Vector3.new(0, 1.75, 0)
+
+			if crouch_rem and (tick() - last_crouch_send > 0.1) then
+				last_crouch_send = tick()
+				crouch_rem:FireServer(true, true)
 			end
 		end)
 		table.insert(conns_rush, c_render)
@@ -480,6 +500,9 @@ function ign.rush(state)
 		if real_col and root then
 			real_col.CanCollide = true
 			real_col.Position = root.Position + Vector3.new(0, 0.18, 0)
+			if real_col:FindFirstChild("CollisionCrouch") then
+				real_col.CollisionCrouch.Position = root.Position + Vector3.new(0, -0.982, 0)
+			end
 		end
 
 		if root_joint and original_c1 then
