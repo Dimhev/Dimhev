@@ -1,5 +1,6 @@
 local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/library.lua"))()
 local ign = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/ignore.lua"))()
+local vis = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/visuals.lua"))()
 
 local wnd = lib.new()
 
@@ -19,13 +20,18 @@ wnd:toggle("Ignore Snare", false, function(val)
 	ign.snare(val)
 end)
 
+wnd:toggle("Ignore Dupe", false, function(val)
+	ign.dupe(val)
+	vis.dupe(val)
+end)
+
 wnd:toggle("Ignore Eyes&Lookman", false, function(val)
 	ign.eyes(val)
 end)
 
 wnd:warn("Warning: This feature is highly experimental and unstable. May cause network drops and does not guarantee damage immunity.")
 
-wnd:toggle("Ignore Rush", false, function(val)
+wnd:toggle("Ignore Rush&Ambush", false, function(val)
 	ign.rush(val)
 end)
 
@@ -39,4 +45,5 @@ end)
 
 wnd.gui.Destroying:Connect(function()
 	ign.cleanup()
+	vis.cleanup()
 end)
