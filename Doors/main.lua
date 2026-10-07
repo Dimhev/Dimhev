@@ -19,6 +19,14 @@ wnd:toggle("Ignore Eyes", false, function(val)
 	ign.eyes(val)
 end)
 
+wnd:toggle("Speed Boost", false, function(val)
+	ign.speed(val)
+end)
+
+wnd:slider("Speed Value", 0, 50, 15, function(val)
+	ign.set_speed(val)
+end)
+
 wnd:warn("Warning: This feature is highly experimental and unstable. May cause network drops and does not guarantee damage immunity.")
 
 wnd.gui.Destroying:Connect(function()
