@@ -6,6 +6,7 @@ local lp = plrs.LocalPlayer
 
 local remotes = rep:WaitForChild("RemotesFolder")
 local screech_rem = remotes:WaitForChild("Screech")
+local crouch_rem = remotes:FindFirstChild("Crouch")
 local real_motor = remotes:FindFirstChild("MotorReplication_Real") or remotes:WaitForChild("MotorReplication")
 local fake_motor = nil
 
@@ -18,11 +19,17 @@ local conns_a90 = {}
 local conns_screech = {}
 local conns_snare = {}
 local conns_eyes = {}
+local conns_speed = {}
 
 local active_a90 = false
 local active_screech = false
 local active_snare = false
 local active_eyes = false
+local active_speed = false
+
+local speed_boost = 15
+local MIN_BOOST = 0
+local MAX_BOOST = 50
 
 local function disconnect_list(list)
 	for _, c in ipairs(list) do
@@ -205,11 +212,82 @@ function ign.eyes(state)
 	end
 end
 
+local function is_crouching(char)
+	local col = char and (char:FindFirstChild("CollisionPart") or char:FindFirstChild("Collision"))
+	return col and col.CollisionGroup == "PlayerCrouching" or false
+end
+
+local function get_base_speed(char)
+	local speed = 15
+	if is_crouching(char) then
+		speed = speed - 5
+	end
+	return speed
+end
+
+function ign.set_speed(val)
+	speed_boost = math.clamp(tonumber(val) or 0, MIN_BOOST, MAX_BOOST)
+	local char = lp.Character
+	if char then
+		char:SetAttribute("SpeedBoost", active_speed and speed_boost or 0)
+	end
+end
+
+function ign.speed(state, boost)
+	active_speed = state
+	if boost ~= nil then
+		ign.set_speed(boost)
+	end
+	disconnect_list(conns_speed)
+
+	local char = lp.Character
+	if char then
+		char:SetAttribute("SpeedBoost", active_speed and speed_boost or 0)
+	end
+
+	if active_speed then
+		local last_crouch = 0
+
+		local c_render = run.RenderStepped:Connect(function()
+			if not active_speed then return end
+			local c = lp.Character
+			if not c then return end
+
+			local hum = c:FindFirstChildOfClass("Humanoid")
+			if hum and speed_boost > 0 then
+				hum.WalkSpeed = get_base_speed(c) + speed_boost
+			end
+
+			if crouch_rem and speed_boost > 0 and (tick() - last_crouch > 0.1) then
+				last_crouch = tick()
+				crouch_rem:FireServer(true, true)
+			end
+		end)
+		table.insert(conns_speed, c_render)
+
+		local c_char = lp.CharacterAdded:Connect(function(new_char)
+			task.wait(0.2)
+			if active_speed then
+				new_char:SetAttribute("SpeedBoost", speed_boost)
+			end
+		end)
+		table.insert(conns_speed, c_char)
+	else
+		if char then
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum then
+				hum.WalkSpeed = get_base_speed(char)
+			end
+		end
+	end
+end
+
 function ign.cleanup()
 	ign.a90(false)
 	ign.screech(false)
 	ign.snare(false)
 	ign.eyes(false)
+	ign.speed(false)
 end
 
 return ign
