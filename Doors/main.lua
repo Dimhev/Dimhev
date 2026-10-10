@@ -35,6 +35,18 @@ tab_entities:create_toggle("Ignore Eyes & Lookman", false, function(val)
 	ign.eyes(val)
 end, "Prevents damage when looking at Eyes or Lookman")
 
+tab_entities:create_section("Library")
+
+tab_entities:create_toggle("Auto Library", false, function(val)
+	ign.library(val, function(code)
+		lib.notify({
+			Title = "Library Code",
+			Content = "Padlock code: " .. code,
+			Duration = 15
+		})
+	end)
+end, "Shows final padlock code once all books are collected")
+
 tab_entities:create_section("Experimental")
 
 tab_entities:create_paragraph(
@@ -56,19 +68,6 @@ end, "Enables walkspeed modifier")
 
 tab_movement:create_slider("Speed Value", 0, 50, 15, function(val)
 	ign.set_speed(val)
-end)
-
-local tab_settings = wnd:create_tab("Settings")
-
-tab_settings:create_section("Info")
-
-tab_settings:create_paragraph(
-	"Keybind",
-	"Press [RightShift] on your keyboard to toggle the interface."
-)
-
-tab_settings:create_button("Unload script", function()
-	wnd.gui:Destroy()
 end)
 
 wnd.gui.Destroying:Connect(function()
