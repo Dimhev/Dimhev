@@ -40,12 +40,12 @@ tab_entities:create_section("Library")
 tab_entities:create_toggle("Auto Library", false, function(val)
 	ign.library(val, function(code)
 		lib.notify({
-			Title = "Library Code",
-			Content = "Padlock code: " .. code,
-			Duration = 15
+			Title = "Library Solved",
+			Content = "Code: " .. code .. " (Entering into padlock...)",
+			Duration = 10
 		})
 	end)
-end, "Shows final padlock code once all books are collected")
+end, "Auto collects paper & books, decodes and unlocks Room 50")
 
 tab_entities:create_section("Experimental")
 
