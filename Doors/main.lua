@@ -2,42 +2,42 @@ local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Di
 local ign = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/ignore.lua"))()
 local vis = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/visuals.lua"))()
 
-local wnd = lib.new({
-	Title = "ui"
+local wnd = lib:create_window({
+	title = "By dimhev"
 })
 
 local tab_entities = wnd:create_tab("Entities")
 
-tab_entities:create_section("Basic modifiers")
+local sec_basic = tab_entities:create_section("Basic modifiers")
 
-tab_entities:create_toggle("Delete A-90", false, function(val)
+sec_basic:create_toggle("Delete A-90", false, function(val)
 	ign.a90(val)
-end, "Removes A-90 mechanics entirely")
+end)
 
-tab_entities:create_toggle("Delete Screech", false, function(val)
+sec_basic:create_toggle("Delete Screech", false, function(val)
 	ign.screech(val)
-end, "Removes Screech mechanics in dark rooms")
+end)
 
-tab_entities:create_toggle("Ignore Giggle", false, function(val)
+sec_basic:create_toggle("Ignore Giggle", false, function(val)
 	ign.giggle(val)
-end, "Prevents Giggle from latching onto you")
+end)
 
-tab_entities:create_toggle("Ignore Snare", false, function(val)
+sec_basic:create_toggle("Ignore Snare", false, function(val)
 	ign.snare(val)
-end, "Avoids floor snare traps")
+end)
 
-tab_entities:create_toggle("Ignore Dupe", false, function(val)
+sec_basic:create_toggle("Ignore Dupe", false, function(val)
 	ign.dupe(val)
 	vis.dupe(val)
-end, "Negates fake door damage and highlights them")
+end)
 
-tab_entities:create_toggle("Ignore Eyes & Lookman", false, function(val)
+sec_basic:create_toggle("Ignore Eyes & Lookman", false, function(val)
 	ign.eyes(val)
-end, "Prevents damage when looking at Eyes or Lookman")
+end)
 
-tab_entities:create_section("Library")
+local sec_library = tab_entities:create_section("Library")
 
-tab_entities:create_toggle("Auto Library", false, function(val)
+sec_library:create_toggle("Auto Library", false, function(val)
 	ign.library(val, function(code)
 		lib.notify({
 			Title = "Library Solved",
@@ -45,29 +45,32 @@ tab_entities:create_toggle("Auto Library", false, function(val)
 			Duration = 10
 		})
 	end)
-end, "Auto collects paper & books, decodes and unlocks Room 50")
+end)
 
-tab_entities:create_section("Experimental")
+local sec_exp = tab_entities:create_section("Experimental")
 
-tab_entities:create_paragraph(
-	"Warning",
-	"This feature is highly experimental and unstable. May cause network drops and does not guarantee damage immunity."
-)
-
-tab_entities:create_toggle("Ignore Rush & Ambush", false, function(val)
+sec_exp:create_toggle("Ignore Rush & Ambush", false, function(val)
 	ign.rush(val)
-end, "Attempts to avoid damage from rushing entities")
+end)
 
 local tab_movement = wnd:create_tab("Movement")
 
-tab_movement:create_section("Speed")
+local sec_speed = tab_movement:create_section("Speed")
 
-tab_movement:create_toggle("Speed Boost", false, function(val)
+sec_speed:create_toggle("Speed Boost", false, function(val)
 	ign.speed(val)
-end, "Enables walkspeed modifier")
+end)
 
-tab_movement:create_slider("Speed Value", 0, 50, 15, function(val)
+sec_speed:create_slider("Speed Value", 0, 50, 15, function(val)
 	ign.set_speed(val)
+end)
+
+local tab_settings = wnd:create_tab("Settings")
+
+local sec_settings = tab_settings:create_section("Management")
+
+sec_settings:create_button("Unload Script", function()
+	wnd:destroy()
 end)
 
 wnd.gui.Destroying:Connect(function()
@@ -76,7 +79,7 @@ wnd.gui.Destroying:Connect(function()
 end)
 
 lib.notify({
-	Title = "ui",
+	Title = "By dimhev",
 	Content = "Loaded successfully",
 	Duration = 2.5
 })
