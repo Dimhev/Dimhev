@@ -3,7 +3,7 @@ local ign = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Di
 local vis = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/visuals.lua"))()
 
 -- Создание главного окна
-local wnd = lib:CreateWindow({
+local wnd = Library:CreateWindow({
 	Title = "DIMHEV HUB",
 	SubTitle = "Doors Edition"
 })
