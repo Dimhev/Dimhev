@@ -5,24 +5,30 @@ local user_input = game:GetService("UserInputService")
 local run_service = game:GetService("RunService")
 
 local local_player = players.LocalPlayer
-local mouse = local_player:GetMouse()
 
-local lib = {}
-lib.__index = lib
+local Moonlight = {}
+Moonlight.__index = Moonlight
 
 local theme = {
 	background = Color3.fromRGB(8, 12, 22),
 	sidebar = Color3.fromRGB(6, 9, 16),
 	topbar = Color3.fromRGB(7, 10, 18),
 	footer = Color3.fromRGB(6, 9, 16),
-	card = Color3.fromRGB(11, 16, 28),
-	card_stroke = Color3.fromRGB(24, 34, 56),
-	accent_purple = Color3.fromRGB(175, 100, 255),
-	accent_active = Color3.fromRGB(130, 75, 230),
-	toggle_off = Color3.fromRGB(18, 25, 42),
-	text_primary = Color3.fromRGB(230, 235, 245),
-	text_muted = Color3.fromRGB(120, 135, 165),
-	tab_active = Color3.fromRGB(16, 22, 38)
+	card = Color3.fromRGB(12, 17, 30),
+	card_stroke = Color3.fromRGB(26, 36, 62),
+	card_divider = Color3.fromRGB(20, 28, 48),
+	accent_purple = Color3.fromRGB(180, 105, 255),
+	accent_glow = Color3.fromRGB(135, 75, 235),
+	accent_stroke = Color3.fromRGB(175, 120, 255),
+	toggle_off = Color3.fromRGB(16, 22, 38),
+	toggle_off_stroke = Color3.fromRGB(28, 38, 64),
+	knob_off = Color3.fromRGB(125, 140, 170),
+	knob_on = Color3.fromRGB(255, 255, 255),
+	row_hover = Color3.fromRGB(22, 30, 52),
+	text_primary = Color3.fromRGB(240, 245, 255),
+	text_secondary = Color3.fromRGB(195, 205, 225),
+	text_muted = Color3.fromRGB(115, 130, 160),
+	tab_active = Color3.fromRGB(16, 23, 40)
 }
 
 local function create(class_name, properties)
@@ -33,15 +39,15 @@ local function create(class_name, properties)
 	return instance
 end
 
-function lib.notify(data)
+function Moonlight:Notify(data)
 	local notify_title = data.Title or "notification"
 	local notify_content = data.Content or ""
 	local duration = data.Duration or 4
 
-	local gui = core_gui:FindFirstChild("notify_ui")
+	local gui = core_gui:FindFirstChild("moonlight_notify_gui")
 	if not gui then
 		gui = create("ScreenGui", {
-			Name = "notify_ui",
+			Name = "moonlight_notify_gui",
 			Parent = core_gui,
 			ResetOnSpawn = false
 		})
@@ -52,9 +58,9 @@ function lib.notify(data)
 		container = create("Frame", {
 			Name = "container",
 			BackgroundTransparency = 1,
-			Position = UDim2.new(1, -270, 1, -20),
+			Position = UDim2.new(1, -280, 1, -25),
 			AnchorPoint = Vector2.new(0, 1),
-			Size = UDim2.new(0, 250, 1, -40),
+			Size = UDim2.new(0, 260, 1, -40),
 			Parent = gui
 		})
 		create("UIListLayout", {
@@ -66,7 +72,7 @@ function lib.notify(data)
 	end
 
 	local card = create("Frame", {
-		Size = UDim2.new(1, 0, 0, 60),
+		Size = UDim2.new(1, 0, 0, 62),
 		BackgroundColor3 = theme.card,
 		BackgroundTransparency = 1,
 		Parent = container
@@ -82,7 +88,7 @@ function lib.notify(data)
 	local title_lbl = create("TextLabel", {
 		BackgroundTransparency = 1,
 		Position = UDim2.new(0, 12, 0, 8),
-		Size = UDim2.new(1, -24, 0, 16),
+		Size = UDim2.new(1, -24, 0, 18),
 		Font = Enum.Font.RobotoMono,
 		Text = notify_title,
 		TextColor3 = theme.accent_purple,
@@ -94,7 +100,7 @@ function lib.notify(data)
 
 	local desc_lbl = create("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 12, 0, 26),
+		Position = UDim2.new(0, 12, 0, 28),
 		Size = UDim2.new(1, -24, 0, 26),
 		Font = Enum.Font.RobotoMono,
 		Text = notify_content,
@@ -107,15 +113,15 @@ function lib.notify(data)
 		Parent = card
 	})
 
-	tween_service:Create(card, TweenInfo.new(0.3), { BackgroundTransparency = 0 }):Play()
-	tween_service:Create(title_lbl, TweenInfo.new(0.3), { TextTransparency = 0 }):Play()
-	tween_service:Create(desc_lbl, TweenInfo.new(0.3), { TextTransparency = 0 }):Play()
+	tween_service:Create(card, TweenInfo.new(0.25), { BackgroundTransparency = 0 }):Play()
+	tween_service:Create(title_lbl, TweenInfo.new(0.25), { TextTransparency = 0 }):Play()
+	tween_service:Create(desc_lbl, TweenInfo.new(0.25), { TextTransparency = 0 }):Play()
 
 	task.delay(duration, function()
 		if card and card.Parent then
-			local fade = tween_service:Create(card, TweenInfo.new(0.3), { BackgroundTransparency = 1 })
-			tween_service:Create(title_lbl, TweenInfo.new(0.3), { TextTransparency = 1 }):Play()
-			tween_service:Create(desc_lbl, TweenInfo.new(0.3), { TextTransparency = 1 }):Play()
+			local fade = tween_service:Create(card, TweenInfo.new(0.25), { BackgroundTransparency = 1 })
+			tween_service:Create(title_lbl, TweenInfo.new(0.25), { TextTransparency = 1 }):Play()
+			tween_service:Create(desc_lbl, TweenInfo.new(0.25), { TextTransparency = 1 }):Play()
 			fade:Play()
 			fade.Completed:Connect(function()
 				card:Destroy()
@@ -124,24 +130,75 @@ function lib.notify(data)
 	end)
 end
 
-function lib:create_window(cfg)
+function Moonlight:CreateWindow(cfg)
 	cfg = cfg or {}
-	local title_text = "By dimhev"
 
 	local gui = create("ScreenGui", {
-		Name = "moonlight_gui",
+		Name = "MoonlightGui",
 		Parent = core_gui,
 		ResetOnSpawn = false
 	})
 
+	local tooltip_frame = create("Frame", {
+		Name = "MoonTooltip",
+		Size = UDim2.new(0, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.XY,
+		BackgroundColor3 = Color3.fromRGB(9, 13, 24),
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 200,
+		Parent = gui
+	})
+	create("UICorner", { CornerRadius = UDim.new(0, 5), Parent = tooltip_frame })
+	create("UIStroke", {
+		Color = theme.card_stroke,
+		Thickness = 1,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = tooltip_frame
+	})
+	create("UIPadding", {
+		PaddingTop = UDim.new(0, 5),
+		PaddingBottom = UDim.new(0, 5),
+		PaddingLeft = UDim.new(0, 9),
+		PaddingRight = UDim.new(0, 9),
+		Parent = tooltip_frame
+	})
+
+	local tooltip_label = create("TextLabel", {
+		BackgroundTransparency = 1,
+		Font = Enum.Font.RobotoMono,
+		TextColor3 = theme.text_secondary,
+		TextSize = 11,
+		AutomaticSize = Enum.AutomaticSize.XY,
+		ZIndex = 201,
+		Parent = tooltip_frame
+	})
+
+	local function show_tooltip(text)
+		if text and text ~= "" then
+			tooltip_label.Text = text
+			tooltip_frame.Visible = true
+		end
+	end
+
+	local function hide_tooltip()
+		tooltip_frame.Visible = false
+	end
+
+	user_input.InputChanged:Connect(function(input)
+		if tooltip_frame.Visible and input.UserInputType == Enum.UserInputType.MouseMovement then
+			tooltip_frame.Position = UDim2.new(0, input.Position.X + 14, 0, input.Position.Y + 14)
+		end
+	end)
+
 	local main = create("Frame", {
-		Size = UDim2.new(0, 720, 0, 480),
-		Position = UDim2.new(0.5, -360, 0.5, -240),
+		Size = UDim2.new(0, 750, 0, 500),
+		Position = UDim2.new(0.5, -375, 0.5, -250),
 		BackgroundColor3 = theme.background,
 		BorderSizePixel = 0,
 		Parent = gui
 	})
-	create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = main })
+	create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = main })
 	create("UIStroke", {
 		Color = theme.card_stroke,
 		Thickness = 1,
@@ -150,12 +207,12 @@ function lib:create_window(cfg)
 	})
 
 	local topbar = create("Frame", {
-		Size = UDim2.new(1, 0, 0, 42),
+		Size = UDim2.new(1, 0, 0, 44),
 		BackgroundColor3 = theme.topbar,
 		BorderSizePixel = 0,
 		Parent = main
 	})
-	create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = topbar })
+	create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = topbar })
 
 	local top_fix = create("Frame", {
 		Size = UDim2.new(1, 0, 0, 10),
@@ -173,13 +230,22 @@ function lib:create_window(cfg)
 		Parent = topbar
 	})
 
+	local icon_img = create("ImageLabel", {
+		Position = UDim2.new(0, 14, 0.5, -11),
+		Size = UDim2.new(0, 22, 0, 22),
+		BackgroundTransparency = 1,
+		Image = "rbxassetid://97257226725113",
+		Parent = topbar
+	})
+	create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = icon_img })
+
 	local title_label = create("TextLabel", {
-		Position = UDim2.new(0, 16, 0, 0),
-		Size = UDim2.new(0, 200, 1, 0),
+		Position = UDim2.new(0, 44, 0, 0),
+		Size = UDim2.new(0, 220, 1, 0),
 		BackgroundTransparency = 1,
 		Font = Enum.Font.RobotoMono,
-		Text = title_text,
-		TextSize = 16,
+		Text = "By dimhev",
+		TextSize = 15,
 		TextColor3 = Color3.fromRGB(255, 255, 255),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = topbar
@@ -189,7 +255,7 @@ function lib:create_window(cfg)
 		Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0.0, Color3.fromRGB(150, 75, 240)),
 			ColorSequenceKeypoint.new(0.25, Color3.fromRGB(215, 120, 255)),
-			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 185, 255)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 190, 255)),
 			ColorSequenceKeypoint.new(0.75, Color3.fromRGB(195, 95, 255)),
 			ColorSequenceKeypoint.new(1.0, Color3.fromRGB(150, 75, 240))
 		}),
@@ -231,8 +297,8 @@ function lib:create_window(cfg)
 	end)
 
 	local sidebar = create("Frame", {
-		Position = UDim2.new(0, 0, 0, 43),
-		Size = UDim2.new(0, 140, 1, -67),
+		Position = UDim2.new(0, 0, 0, 45),
+		Size = UDim2.new(0, 150, 1, -71),
 		BackgroundColor3 = theme.sidebar,
 		BorderSizePixel = 0,
 		Parent = main
@@ -264,21 +330,21 @@ function lib:create_window(cfg)
 	})
 
 	local content_holder = create("Frame", {
-		Position = UDim2.new(0, 140, 0, 43),
-		Size = UDim2.new(1, -140, 1, -67),
+		Position = UDim2.new(0, 150, 0, 45),
+		Size = UDim2.new(1, -150, 1, -71),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Parent = main
 	})
 
 	local footer = create("Frame", {
-		Position = UDim2.new(0, 0, 1, -24),
-		Size = UDim2.new(1, 0, 0, 24),
+		Position = UDim2.new(0, 0, 1, -26),
+		Size = UDim2.new(1, 0, 0, 26),
 		BackgroundColor3 = theme.footer,
 		BorderSizePixel = 0,
 		Parent = main
 	})
-	create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = footer })
+	create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = footer })
 
 	local footer_fix = create("Frame", {
 		Size = UDim2.new(1, 0, 0, 10),
@@ -301,7 +367,7 @@ function lib:create_window(cfg)
 		Size = UDim2.new(1, -32, 1, 0),
 		BackgroundTransparency = 1,
 		Font = Enum.Font.RobotoMono,
-		Text = "moonlight project | By dimhev",
+		Text = "Moonlight | By dimhev",
 		TextColor3 = theme.text_muted,
 		TextSize = 11,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -316,7 +382,7 @@ function lib:create_window(cfg)
 		shimmer_conn = shimmer_conn
 	}
 
-	function window:destroy()
+	function window:Destroy()
 		if self.shimmer_conn then
 			self.shimmer_conn:Disconnect()
 			self.shimmer_conn = nil
@@ -326,9 +392,9 @@ function lib:create_window(cfg)
 		end
 	end
 
-	function window:create_tab(tab_name)
+	function window:CreateTab(tab_name)
 		local tab_btn = create("TextButton", {
-			Size = UDim2.new(1, 0, 0, 32),
+			Size = UDim2.new(1, 0, 0, 34),
 			BackgroundTransparency = 1,
 			BackgroundColor3 = theme.tab_active,
 			BorderSizePixel = 0,
@@ -356,36 +422,36 @@ function lib:create_window(cfg)
 			Parent = content_holder
 		})
 		create("UIPadding", {
-			PaddingTop = UDim.new(0, 10),
-			PaddingBottom = UDim.new(0, 10),
-			PaddingLeft = UDim.new(0, 10),
-			PaddingRight = UDim.new(0, 10),
+			PaddingTop = UDim.new(0, 12),
+			PaddingBottom = UDim.new(0, 14),
+			PaddingLeft = UDim.new(0, 14),
+			PaddingRight = UDim.new(0, 14),
 			Parent = page
 		})
 
 		local col_left = create("Frame", {
 			Position = UDim2.new(0, 0, 0, 0),
-			Size = UDim2.new(0.5, -5, 0, 0),
+			Size = UDim2.new(0.5, -7, 0, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundTransparency = 1,
 			Parent = page
 		})
 		create("UIListLayout", {
 			SortOrder = Enum.SortOrder.LayoutOrder,
-			Padding = UDim.new(0, 10),
+			Padding = UDim.new(0, 12),
 			Parent = col_left
 		})
 
 		local col_right = create("Frame", {
-			Position = UDim2.new(0.5, 5, 0, 0),
-			Size = UDim2.new(0.5, -5, 0, 0),
+			Position = UDim2.new(0.5, 7, 0, 0),
+			Size = UDim2.new(0.5, -7, 0, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundTransparency = 1,
 			Parent = page
 		})
 		create("UIListLayout", {
 			SortOrder = Enum.SortOrder.LayoutOrder,
-			Padding = UDim.new(0, 10),
+			Padding = UDim.new(0, 12),
 			Parent = col_right
 		})
 
@@ -417,7 +483,7 @@ function lib:create_window(cfg)
 			select()
 		end
 
-		function tab:create_section(sec_name)
+		function tab:CreateSection(sec_name)
 			self.sections_count = self.sections_count + 1
 			local parent_col = (self.sections_count % 2 == 1) and self.col_left or self.col_right
 
@@ -436,10 +502,10 @@ function lib:create_window(cfg)
 				Parent = card
 			})
 			create("UIPadding", {
-				PaddingTop = UDim.new(0, 8),
-				PaddingBottom = UDim.new(0, 8),
-				PaddingLeft = UDim.new(0, 10),
-				PaddingRight = UDim.new(0, 10),
+				PaddingTop = UDim.new(0, 10),
+				PaddingBottom = UDim.new(0, 10),
+				PaddingLeft = UDim.new(0, 12),
+				PaddingRight = UDim.new(0, 12),
 				Parent = card
 			})
 
@@ -449,21 +515,29 @@ function lib:create_window(cfg)
 				Font = Enum.Font.RobotoMono,
 				Text = sec_name,
 				TextColor3 = theme.text_primary,
-				TextSize = 13,
+				TextSize = 14,
 				TextXAlignment = Enum.TextXAlignment.Left,
+				Parent = card
+			})
+
+			local divider = create("Frame", {
+				Position = UDim2.new(0, 0, 0, 24),
+				Size = UDim2.new(1, 0, 0, 1),
+				BackgroundColor3 = theme.card_divider,
+				BorderSizePixel = 0,
 				Parent = card
 			})
 
 			local list = create("Frame", {
 				Size = UDim2.new(1, 0, 0, 0),
-				Position = UDim2.new(0, 0, 0, 24),
+				Position = UDim2.new(0, 0, 0, 31),
 				AutomaticSize = Enum.AutomaticSize.Y,
 				BackgroundTransparency = 1,
 				Parent = card
 			})
 			create("UIListLayout", {
 				SortOrder = Enum.SortOrder.LayoutOrder,
-				Padding = UDim.new(0, 6),
+				Padding = UDim.new(0, 4),
 				Parent = list
 			})
 
@@ -472,36 +546,44 @@ function lib:create_window(cfg)
 				list = list
 			}
 
-			function section:create_toggle(name, default_val, callback, desc)
+			function section:CreateToggle(name, default_val, callback, desc)
 				local state = default_val or false
 
 				local row = create("Frame", {
-					Size = UDim2.new(1, 0, 0, 24),
+					Size = UDim2.new(1, 0, 0, 28),
+					BackgroundColor3 = theme.row_hover,
 					BackgroundTransparency = 1,
+					BorderSizePixel = 0,
 					Parent = self.list
+				})
+				create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = row })
+				create("UIPadding", {
+					PaddingLeft = UDim.new(0, 6),
+					PaddingRight = UDim.new(0, 6),
+					Parent = row
 				})
 
 				local label = create("TextLabel", {
-					Size = UDim2.new(1, -44, 1, 0),
+					Size = UDim2.new(1, -48, 1, 0),
 					BackgroundTransparency = 1,
 					Font = Enum.Font.RobotoMono,
 					Text = name,
-					TextColor3 = theme.text_primary,
-					TextSize = 12,
+					TextColor3 = state and theme.text_primary or theme.text_secondary,
+					TextSize = 13,
 					TextXAlignment = Enum.TextXAlignment.Left,
 					Parent = row
 				})
 
 				local toggle_bg = create("Frame", {
-					Size = UDim2.new(0, 36, 0, 18),
-					Position = UDim2.new(1, -36, 0.5, -9),
-					BackgroundColor3 = state and theme.accent_active or theme.toggle_off,
+					Size = UDim2.new(0, 38, 0, 20),
+					Position = UDim2.new(1, -38, 0.5, -10),
+					BackgroundColor3 = state and theme.accent_glow or theme.toggle_off,
 					BorderSizePixel = 0,
 					Parent = row
 				})
 				create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = toggle_bg })
-				create("UIStroke", {
-					Color = theme.card_stroke,
+				local toggle_stroke = create("UIStroke", {
+					Color = state and theme.accent_stroke or theme.toggle_off_stroke,
 					Thickness = 1,
 					ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 					Parent = toggle_bg
@@ -509,8 +591,8 @@ function lib:create_window(cfg)
 
 				local knob = create("Frame", {
 					Size = UDim2.new(0, 14, 0, 14),
-					Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7),
-					BackgroundColor3 = Color3.fromRGB(240, 245, 255),
+					Position = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7),
+					BackgroundColor3 = state and theme.knob_on or theme.knob_off,
 					BorderSizePixel = 0,
 					Parent = toggle_bg
 				})
@@ -523,13 +605,28 @@ function lib:create_window(cfg)
 					Parent = row
 				})
 
+				btn.MouseEnter:Connect(function()
+					tween_service:Create(row, TweenInfo.new(0.15), { BackgroundTransparency = 0.9 }):Play()
+					if desc then show_tooltip(desc) end
+				end)
+
+				btn.MouseLeave:Connect(function()
+					tween_service:Create(row, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
+					hide_tooltip()
+				end)
+
 				btn.MouseButton1Click:Connect(function()
 					state = not state
-					local target_color = state and theme.accent_active or theme.toggle_off
-					local target_pos = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+					local target_color = state and theme.accent_glow or theme.toggle_off
+					local stroke_color = state and theme.accent_stroke or theme.toggle_off_stroke
+					local knob_color = state and theme.knob_on or theme.knob_off
+					local knob_pos = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
+					local text_color = state and theme.text_primary or theme.text_secondary
 
-					tween_service:Create(toggle_bg, TweenInfo.new(0.2), { BackgroundColor3 = target_color }):Play()
-					tween_service:Create(knob, TweenInfo.new(0.2), { Position = target_pos }):Play()
+					tween_service:Create(toggle_bg, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundColor3 = target_color }):Play()
+					tween_service:Create(toggle_stroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Color = stroke_color }):Play()
+					tween_service:Create(knob, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = knob_pos, BackgroundColor3 = knob_color }):Play()
+					tween_service:Create(label, TweenInfo.new(0.2), { TextColor3 = text_color }):Play()
 
 					if callback then
 						callback(state)
@@ -539,24 +636,42 @@ function lib:create_window(cfg)
 				return row
 			end
 
-			function section:create_button(name, callback)
+			function section:CreateButton(name, callback, desc)
+				local row = create("Frame", {
+					Size = UDim2.new(1, 0, 0, 30),
+					BackgroundTransparency = 1,
+					Parent = self.list
+				})
+
 				local btn_frame = create("TextButton", {
-					Size = UDim2.new(1, 0, 0, 26),
+					Size = UDim2.new(1, 0, 1, 0),
 					BackgroundColor3 = theme.sidebar,
 					BorderSizePixel = 0,
 					Font = Enum.Font.RobotoMono,
 					Text = name,
-					TextColor3 = theme.text_primary,
-					TextSize = 12,
-					Parent = self.list
+					TextColor3 = theme.text_secondary,
+					TextSize = 13,
+					Parent = row
 				})
 				create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = btn_frame })
-				create("UIStroke", {
+				local btn_stroke = create("UIStroke", {
 					Color = theme.card_stroke,
 					Thickness = 1,
 					ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 					Parent = btn_frame
 				})
+
+				btn_frame.MouseEnter:Connect(function()
+					tween_service:Create(btn_frame, TweenInfo.new(0.15), { BackgroundColor3 = theme.row_hover, TextColor3 = theme.text_primary }):Play()
+					tween_service:Create(btn_stroke, TweenInfo.new(0.15), { Color = theme.accent_purple }):Play()
+					if desc then show_tooltip(desc) end
+				end)
+
+				btn_frame.MouseLeave:Connect(function()
+					tween_service:Create(btn_frame, TweenInfo.new(0.15), { BackgroundColor3 = theme.sidebar, TextColor3 = theme.text_secondary }):Play()
+					tween_service:Create(btn_stroke, TweenInfo.new(0.15), { Color = theme.card_stroke }):Play()
+					hide_tooltip()
+				end)
 
 				btn_frame.MouseButton1Click:Connect(function()
 					if callback then
@@ -567,15 +682,24 @@ function lib:create_window(cfg)
 				return btn_frame
 			end
 
-			function section:create_slider(name, min_val, max_val, default_val, callback)
+			function section:CreateSlider(name, min_val, max_val, default_val, callback, desc)
 				min_val = min_val or 0
 				max_val = max_val or 100
 				local cur_val = math.clamp(default_val or min_val, min_val, max_val)
 
 				local box = create("Frame", {
-					Size = UDim2.new(1, 0, 0, 36),
+					Size = UDim2.new(1, 0, 0, 42),
+					BackgroundColor3 = theme.row_hover,
 					BackgroundTransparency = 1,
+					BorderSizePixel = 0,
 					Parent = self.list
+				})
+				create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = box })
+				create("UIPadding", {
+					PaddingTop = UDim.new(0, 4),
+					PaddingLeft = UDim.new(0, 6),
+					PaddingRight = UDim.new(0, 6),
+					Parent = box
 				})
 
 				local label = create("TextLabel", {
@@ -583,8 +707,8 @@ function lib:create_window(cfg)
 					BackgroundTransparency = 1,
 					Font = Enum.Font.RobotoMono,
 					Text = name,
-					TextColor3 = theme.text_primary,
-					TextSize = 12,
+					TextColor3 = theme.text_secondary,
+					TextSize = 13,
 					TextXAlignment = Enum.TextXAlignment.Left,
 					Parent = box
 				})
@@ -596,24 +720,30 @@ function lib:create_window(cfg)
 					Font = Enum.Font.RobotoMono,
 					Text = tostring(cur_val),
 					TextColor3 = theme.accent_purple,
-					TextSize = 12,
+					TextSize = 13,
 					TextXAlignment = Enum.TextXAlignment.Right,
 					Parent = box
 				})
 
 				local bar = create("Frame", {
-					Position = UDim2.new(0, 0, 0, 22),
+					Position = UDim2.new(0, 0, 0, 24),
 					Size = UDim2.new(1, 0, 0, 6),
 					BackgroundColor3 = theme.toggle_off,
 					BorderSizePixel = 0,
 					Parent = box
 				})
 				create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = bar })
+				create("UIStroke", {
+					Color = theme.toggle_off_stroke,
+					Thickness = 1,
+					ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+					Parent = bar
+				})
 
 				local init_pct = (cur_val - min_val) / (max_val - min_val)
 				local fill = create("Frame", {
 					Size = UDim2.new(init_pct, 0, 1, 0),
-					BackgroundColor3 = theme.accent_active,
+					BackgroundColor3 = theme.accent_glow,
 					BorderSizePixel = 0,
 					Parent = bar
 				})
@@ -655,6 +785,16 @@ function lib:create_window(cfg)
 					end
 				end)
 
+				box.MouseEnter:Connect(function()
+					tween_service:Create(box, TweenInfo.new(0.15), { BackgroundTransparency = 0.9 }):Play()
+					if desc then show_tooltip(desc) end
+				end)
+
+				box.MouseLeave:Connect(function()
+					tween_service:Create(box, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
+					hide_tooltip()
+				end)
+
 				return box
 			end
 
@@ -667,4 +807,4 @@ function lib:create_window(cfg)
 	return window
 end
 
-return lib
+return Moonlight
