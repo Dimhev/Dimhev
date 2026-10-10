@@ -8,6 +8,7 @@ local remotes = rep:WaitForChild("RemotesFolder")
 local screech_rem = remotes:WaitForChild("Screech")
 local crouch_rem = remotes:FindFirstChild("Crouch")
 local real_motor = remotes:FindFirstChild("MotorReplication_Real") or remotes:WaitForChild("MotorReplication")
+local pl_remote = remotes:FindFirstChild("PL")
 local fake_motor = nil
 
 local gd = rep:FindFirstChild("GameData")
@@ -44,6 +45,7 @@ local original_c1 = nil
 
 local last_lib_code = nil
 local lib_notify_cb = nil
+local lib_thread = nil
 
 local function disconnect_list(list)
 	for _, c in ipairs(list) do
@@ -58,6 +60,42 @@ local function is_crouching(char)
 	if not char then return false end
 	local col = char:FindFirstChild("CollisionPart") or char:FindFirstChild("Collision")
 	return (col and col.CollisionGroup == "PlayerCrouching") or false
+end
+
+local function tp_and_interact(target, offset)
+	local char = lp.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not root or not target then return false end
+
+	local target_cf = nil
+	if target:IsA("Model") then
+		target_cf = target:GetPivot()
+	elseif target:IsA("BasePart") then
+		target_cf = target.CFrame
+	else
+		local p = target:FindFirstChildWhichIsA("BasePart", true)
+		if p then target_cf = p.CFrame end
+	end
+
+	if not target_cf then return false end
+
+	root.CFrame = target_cf * (offset or CFrame.new(0, 0, 0))
+
+	for _, prompt in ipairs(target:GetDescendants()) do
+		if prompt:IsA("ProximityPrompt") then
+			if fireproximityprompt then
+				fireproximityprompt(prompt)
+			end
+		end
+	end
+	return true
+end
+
+local function has_hint_paper()
+	local char = lp.Character
+	local bp = lp:FindFirstChild("Backpack")
+	return (char and (char:FindFirstChild("LibraryHintPaper", true) or char:FindFirstChild("LibraryHintPaperHard", true)))
+		or (bp and (bp:FindFirstChild("LibraryHintPaper", true) or bp:FindFirstChild("LibraryHintPaperHard", true)))
 end
 
 local function get_a90_frame()
@@ -581,20 +619,90 @@ function ign.library(state, cb)
 	end
 	last_lib_code = nil
 
-	if active_library then
-		task.spawn(function()
-			while active_library do
-				local code = get_library_code()
-				if code and not code:find("_") and code ~= last_lib_code then
-					last_lib_code = code
-					if lib_notify_cb then
-						lib_notify_cb(code)
-					end
+	if lib_thread then
+		task.cancel(lib_thread)
+		lib_thread = nil
+	end
+
+	if not active_library then return end
+
+	lib_thread = task.spawn(function()
+		local rooms = ws:WaitForChild("CurrentRooms", 10)
+		if not rooms then return end
+
+		while active_library do
+			local cur = tonumber(lp:GetAttribute("CurrentRoom"))
+			if cur == 50 then break end
+			task.wait(0.2)
+		end
+		if not active_library then return end
+
+		local r50 = rooms:WaitForChild("50", 15)
+		if not r50 then return end
+
+		local paper_tries = 0
+		while active_library and not has_hint_paper() and paper_tries < 40 do
+			local paper = r50:FindFirstChild("LibraryHintPaper", true)
+			if paper then
+				tp_and_interact(paper, CFrame.new(0, 2, 0))
+			end
+			paper_tries = paper_tries + 1
+			task.wait(0.15)
+		end
+
+		while active_library do
+			local code = get_library_code()
+			if code and not code:find("_") then
+				last_lib_code = code
+				if lib_notify_cb then
+					lib_notify_cb(code)
 				end
+				break
+			end
+
+			local books = {}
+			for _, desc in ipairs(r50:GetDescendants()) do
+				if desc.Name == "LiveHintBook" and desc.Parent then
+					table.insert(books, desc)
+				end
+			end
+
+			if #books == 0 then
 				task.wait(0.3)
 			end
-		end)
-	end
+
+			for _, book in ipairs(books) do
+				if not active_library then break end
+				local cur_code = get_library_code()
+				if cur_code and not cur_code:find("_") then break end
+
+				for _ = 1, 4 do
+					if not book.Parent then break end
+					tp_and_interact(book, CFrame.new(0, 0, 0))
+					task.wait(0.08)
+				end
+			end
+
+			task.wait(0.1)
+		end
+
+		if active_library and last_lib_code then
+			local pl = pl_remote or remotes:FindFirstChild("PL") or remotes:WaitForChild("PL", 5)
+			if pl then
+				local padlock = r50:FindFirstChild("Padlock", true) or ws:FindFirstChild("Padlock", true)
+				if padlock then
+					for _ = 1, 10 do
+						if not active_library then break end
+						tp_and_interact(padlock, CFrame.new(0, 0, -2))
+						pl:FireServer(last_lib_code)
+						task.wait(0.2)
+					end
+				else
+					pl:FireServer(last_lib_code)
+				end
+			end
+		end
+	end)
 end
 
 ign.auto_library = ign.library
@@ -609,6 +717,12 @@ function ign.cleanup()
 	ign.speed(false)
 	ign.rush(false)
 	ign.library(false)
+
+	if lib_thread then
+		task.cancel(lib_thread)
+		lib_thread = nil
+	end
+
 	cleanup_rush_clones()
 end
 
