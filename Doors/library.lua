@@ -234,7 +234,7 @@ function Moonlight:CreateWindow(cfg)
 		Position = UDim2.new(0, 14, 0.5, -11),
 		Size = UDim2.new(0, 22, 0, 22),
 		BackgroundTransparency = 1,
-		Image = "rbxassetid://97257226725113",
+		Image = "rbxassetid://94671054973138",
 		Parent = topbar
 	})
 	create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = icon_img })
