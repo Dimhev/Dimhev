@@ -196,9 +196,9 @@ function lib.new(cfg)
 	local author = Instance.new("TextLabel")
 	author.Text = "By dimhev"
 	author.Font = theme.bold
-	author.TextSize = 12
+	author.TextSize = 13
 	author.TextColor3 = Color3.fromRGB(255, 255, 255)
-	author.Position = UDim2.new(0, 44, 0.5, 0)
+	author.Position = UDim2.new(0, 16, 0.5, 0) 
 	author.AnchorPoint = Vector2.new(0, 0.5)
 	author.AutomaticSize = Enum.AutomaticSize.XY
 	author.BackgroundTransparency = 1
