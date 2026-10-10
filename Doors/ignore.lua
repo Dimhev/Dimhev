@@ -32,6 +32,7 @@ local active_dupe = false
 local active_eyes = false
 local active_speed = false
 local active_rush = false
+local active_library = false
 
 local speed_boost = 15
 local MIN_BOOST = 0
@@ -40,6 +41,9 @@ local MAX_BOOST = 50
 local col_clone = nil
 local col_part_clone = nil
 local original_c1 = nil
+
+local last_lib_code = nil
+local lib_notify_cb = nil
 
 local function disconnect_list(list)
 	for _, c in ipairs(list) do
@@ -525,6 +529,76 @@ function ign.rush(state)
 	end
 end
 
+local function get_library_code()
+	local char = lp.Character
+	local bp = lp:FindFirstChild("Backpack")
+	local paper = (char and (char:FindFirstChild("LibraryHintPaper") or char:FindFirstChild("LibraryHintPaperHard")))
+		or (bp and (bp:FindFirstChild("LibraryHintPaper") or bp:FindFirstChild("LibraryHintPaperHard")))
+
+	if not paper or not paper:FindFirstChild("UI") then
+		return nil
+	end
+
+	local pgui = lp:FindFirstChild("PlayerGui")
+	local perm_ui = pgui and pgui:FindFirstChild("PermUI")
+	local hints = perm_ui and perm_ui:FindFirstChild("Hints")
+	if not hints then
+		return nil
+	end
+
+	local fl = gd and gd:FindFirstChild("Floor")
+	local is_fools = fl and fl.Value == "Fools"
+	local len = is_fools and 10 or 5
+
+	local code = {}
+	for i = 1, len do
+		code[i] = "_"
+	end
+
+	local hint_children = hints:GetChildren()
+	local ui_children = paper.UI:GetChildren()
+
+	for _, hint in ipairs(hint_children) do
+		if hint:IsA("ImageLabel") and hint:FindFirstChild("TextLabel") then
+			for _, ui_child in ipairs(ui_children) do
+				if ui_child:IsA("ImageLabel") and ui_child.ImageRectOffset == hint.ImageRectOffset then
+					local idx = tonumber(ui_child.Name)
+					if idx and code[idx] then
+						code[idx] = hint.TextLabel.Text
+					end
+				end
+			end
+		end
+	end
+
+	return table.concat(code)
+end
+
+function ign.library(state, cb)
+	active_library = state
+	if cb then
+		lib_notify_cb = cb
+	end
+	last_lib_code = nil
+
+	if active_library then
+		task.spawn(function()
+			while active_library do
+				local code = get_library_code()
+				if code and not code:find("_") and code ~= last_lib_code then
+					last_lib_code = code
+					if lib_notify_cb then
+						lib_notify_cb(code)
+					end
+				end
+				task.wait(0.3)
+			end
+		end)
+	end
+end
+
+ign.auto_library = ign.library
+
 function ign.cleanup()
 	ign.a90(false)
 	ign.screech(false)
@@ -534,6 +608,7 @@ function ign.cleanup()
 	ign.eyes(false)
 	ign.speed(false)
 	ign.rush(false)
+	ign.library(false)
 	cleanup_rush_clones()
 end
 
