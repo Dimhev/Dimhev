@@ -2,31 +2,31 @@ local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Di
 local ign = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/ignore.lua"))()
 local vis = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/visuals.lua"))()
 
-local wnd = lib:create_window({
+local wnd = lib:CreateWindow({
 	title = "By dimhev"
 })
 
-local tab_entities = wnd:create_tab("Entities")
+local tab_entities = wnd:CreateTab("Entities")
 
-local sec_basic = tab_entities:create_section("Basic modifiers")
+local sec_basic = tab_entities:CreateSection("Basic modifiers")
 
-sec_basic:create_toggle("Delete A-90", false, function(val)
+sec_basic:CreateToggle("Delete A-90", false, function(val)
 	ign.a90(val)
 end)
 
-sec_basic:create_toggle("Delete Screech", false, function(val)
+sec_basic:CreateToggle("Delete Screech", false, function(val)
 	ign.screech(val)
 end)
 
-sec_basic:create_toggle("Ignore Giggle", false, function(val)
+sec_basic:CreateToggle("Ignore Giggle", false, function(val)
 	ign.giggle(val)
 end)
 
-sec_basic:create_toggle("Ignore Snare", false, function(val)
+sec_basic:CreateToggle("Ignore Snare", false, function(val)
 	ign.snare(val)
 end)
 
-sec_basic:create_toggle("Ignore Dupe", false, function(val)
+sec_basic:CreateToggle("Ignore Dupe", false, function(val)
 	ign.dupe(val)
 	vis.dupe(val)
 end)
@@ -35,9 +35,9 @@ sec_basic:create_toggle("Ignore Eyes & Lookman", false, function(val)
 	ign.eyes(val)
 end)
 
-local sec_library = tab_entities:create_section("Library")
+local sec_library = tab_entities:CreateSection("Library")
 
-sec_library:create_toggle("Auto Library", false, function(val)
+sec_library:CreateToggle("Auto Library", false, function(val)
 	ign.library(val, function(code)
 		lib.notify({
 			Title = "Library Solved",
@@ -47,29 +47,29 @@ sec_library:create_toggle("Auto Library", false, function(val)
 	end)
 end)
 
-local sec_exp = tab_entities:create_section("Experimental")
+local sec_exp = tab_entities:CreateSection("Experimental")
 
-sec_exp:create_toggle("Ignore Rush & Ambush", false, function(val)
+sec_exp:CreateToggle("Ignore Rush & Ambush", false, function(val)
 	ign.rush(val)
 end)
 
-local tab_movement = wnd:create_tab("Movement")
+local tab_movement = wnd:CreateTab("Movement")
 
-local sec_speed = tab_movement:create_section("Speed")
+local sec_speed = tab_movement:CreateSection("Speed")
 
-sec_speed:create_toggle("Speed Boost", false, function(val)
+sec_speed:CreateToggle("Speed Boost", false, function(val)
 	ign.speed(val)
 end)
 
-sec_speed:create_slider("Speed Value", 0, 50, 15, function(val)
+sec_speed:CreateSlider("Speed Value", 0, 50, 15, function(val)
 	ign.set_speed(val)
 end)
 
-local tab_settings = wnd:create_tab("Settings")
+local tab_settings = wnd:CreateTab("Settings")
 
-local sec_settings = tab_settings:create_section("Management")
+local sec_settings = tab_settings:CreateSection("Management")
 
-sec_settings:create_button("Unload Script", function()
+sec_settings:CreateButton("Unload Script", function()
 	wnd:destroy()
 end)
 
