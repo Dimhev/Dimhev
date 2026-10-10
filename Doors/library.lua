@@ -1,831 +1,729 @@
-local ts = game:GetService("TweenService")
-local uis = game:GetService("UserInputService")
 local plrs = game:GetService("Players")
+local rep = game:GetService("ReplicatedStorage")
+local run = game:GetService("RunService")
+local ws = game:GetService("Workspace")
+local lp = plrs.LocalPlayer
 
-local function get_container()
-	if gethui then return gethui() end
-	local s, res = pcall(function() return game:GetService("CoreGui") end)
-	if s and res then return res end
-	return plrs.LocalPlayer:WaitForChild("PlayerGui")
+local remotes = rep:WaitForChild("RemotesFolder")
+local screech_rem = remotes:WaitForChild("Screech")
+local crouch_rem = remotes:FindFirstChild("Crouch")
+local real_motor = remotes:FindFirstChild("MotorReplication_Real") or remotes:WaitForChild("MotorReplication")
+local pl_remote = remotes:FindFirstChild("PL")
+local fake_motor = nil
+
+local gd = rep:FindFirstChild("GameData")
+local floor_val = gd and gd:FindFirstChild("Floor")
+local is_old = floor_val and (floor_val.Value == "Fools" or floor_val.Value == "OldHotel")
+
+local ign = {}
+local conns_a90 = {}
+local conns_screech = {}
+local conns_giggle = {}
+local conns_snare = {}
+local conns_dupe = {}
+local conns_eyes = {}
+local conns_speed = {}
+local conns_rush = {}
+
+local active_a90 = false
+local active_screech = false
+local active_giggle = false
+local active_snare = false
+local active_dupe = false
+local active_eyes = false
+local active_speed = false
+local active_rush = false
+local active_library = false
+
+local speed_boost = 15
+local MIN_BOOST = 0
+local MAX_BOOST = 50
+
+local col_clone = nil
+local col_part_clone = nil
+local original_c1 = nil
+
+local last_lib_code = nil
+local lib_notify_cb = nil
+local lib_thread = nil
+
+local function disconnect_list(list)
+	for _, c in ipairs(list) do
+		if typeof(c) == "RBXScriptConnection" and c.Connected then
+			c:Disconnect()
+		end
+	end
+	table.clear(list)
 end
 
-local cg = get_container()
+local function is_crouching(char)
+	if not char then return false end
+	local col = char:FindFirstChild("CollisionPart") or char:FindFirstChild("Collision")
+	return (col and col.CollisionGroup == "PlayerCrouching") or false
+end
 
-local function purge()
-	local targets = {
-		gethui and gethui(),
-		pcall(function() return game:GetService("CoreGui") end) and game:GetService("CoreGui") or nil,
-		plrs.LocalPlayer and plrs.LocalPlayer:FindFirstChild("PlayerGui")
-	}
-	for _, holder in ipairs(targets) do
-		if holder then
-			for _, ch in ipairs(holder:GetChildren()) do
-				if ch.Name == "ui" then
-					ch:Destroy()
+local function tp_and_interact(target, offset)
+	local char = lp.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not root or not target then return false end
+
+	local target_cf = nil
+	if target:IsA("Model") then
+		target_cf = target:GetPivot()
+	elseif target:IsA("BasePart") then
+		target_cf = target.CFrame
+	else
+		local p = target:FindFirstChildWhichIsA("BasePart", true)
+		if p then target_cf = p.CFrame end
+	end
+
+	if not target_cf then return false end
+
+	root.CFrame = target_cf * (offset or CFrame.new(0, 0, 0))
+
+	for _, prompt in ipairs(target:GetDescendants()) do
+		if prompt:IsA("ProximityPrompt") then
+			if fireproximityprompt then
+				fireproximityprompt(prompt)
+			end
+		end
+	end
+	return true
+end
+
+local function has_hint_paper()
+	local char = lp.Character
+	local bp = lp:FindFirstChild("Backpack")
+	return (char and (char:FindFirstChild("LibraryHintPaper", true) or char:FindFirstChild("LibraryHintPaperHard", true)))
+		or (bp and (bp:FindFirstChild("LibraryHintPaper", true) or bp:FindFirstChild("LibraryHintPaperHard", true)))
+end
+
+local function get_a90_frame()
+	local pgui = lp:FindFirstChild("PlayerGui")
+	local mui = pgui and pgui:FindFirstChild("MainUI")
+	local jmp = mui and mui:FindFirstChild("Jumpscare")
+	return jmp and jmp:FindFirstChild("Jumpscare_A90")
+end
+
+function ign.a90(state)
+	active_a90 = state
+	disconnect_list(conns_a90)
+	
+	if active_a90 then
+		lp:SetAttribute("Invincibility", true)
+		local frame = get_a90_frame()
+		if frame then
+			frame.Visible = false
+			local c = frame:GetPropertyChangedSignal("Visible"):Connect(function()
+				if active_a90 and frame.Visible then
+					frame.Visible = false
+				end
+			end)
+			table.insert(conns_a90, c)
+		end
+	else
+		lp:SetAttribute("Invincibility", nil)
+		local frame = get_a90_frame()
+		if frame then
+			frame.Visible = false
+		end
+	end
+end
+
+local function get_screech_module()
+	local pgui = lp:FindFirstChild("PlayerGui")
+	local rl = pgui and pgui:FindFirstChild("MainUI")
+	rl = rl and rl:FindFirstChild("Initiator")
+	rl = rl and rl:FindFirstChild("Main_Game")
+	rl = rl and rl:FindFirstChild("RemoteListener")
+	local mods = rl and rl:FindFirstChild("Modules")
+	return mods and mods:FindFirstChild("Screech")
+end
+
+function ign.screech(state)
+	active_screech = state
+	disconnect_list(conns_screech)
+	
+	local smod = get_screech_module()
+	
+	if active_screech then
+		if smod then
+			smod:SetAttribute("Static", true)
+		end
+		
+		local c1 = screech_rem.OnClientEvent:Connect(function()
+			if active_screech then
+				screech_rem:FireServer(true)
+			end
+		end)
+		table.insert(conns_screech, c1)
+		
+		local function hook_camera(cam)
+			if not cam then return end
+			local c = cam.ChildAdded:Connect(function(child)
+				if active_screech and (child.Name == "Screech" or child.Name == "ScreechRetro") then
+					task.defer(function()
+						child:Destroy()
+					end)
+				end
+			end)
+			table.insert(conns_screech, c)
+		end
+		
+		hook_camera(ws.CurrentCamera)
+		
+		local c2 = ws:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+			if active_screech then
+				hook_camera(ws.CurrentCamera)
+			end
+		end)
+		table.insert(conns_screech, c2)
+	else
+		if smod then
+			smod:SetAttribute("Static", nil)
+		end
+	end
+end
+
+local function disable_giggle(inst)
+	if not inst then return end
+	local hb = inst.Name == "Hitbox" and inst or inst:FindFirstChild("Hitbox", true)
+	if hb and hb:IsA("BasePart") and not hb:GetAttribute("GiggleDisabled") then
+		hb:SetAttribute("GiggleDisabled", true)
+		hb.CanTouch = false
+	end
+end
+
+function ign.giggle(state)
+	active_giggle = state
+	disconnect_list(conns_giggle)
+
+	if active_giggle then
+		local rooms = ws:FindFirstChild("CurrentRooms") or ws
+
+		for _, inst in ipairs(rooms:GetDescendants()) do
+			if not active_giggle then break end
+			if inst.Name == "GiggleCeiling" or (inst.Name == "Hitbox" and inst:FindFirstAncestor("GiggleCeiling")) then
+				disable_giggle(inst)
+			end
+		end
+
+		local c = (ws:FindFirstChild("CurrentRooms") or ws).DescendantAdded:Connect(function(inst)
+			if active_giggle and (inst.Name == "GiggleCeiling" or (inst.Name == "Hitbox" and inst:FindFirstAncestor("GiggleCeiling"))) then
+				disable_giggle(inst)
+			end
+		end)
+		table.insert(conns_giggle, c)
+	end
+end
+
+local function disable_snare(inst)
+	if not inst then return end
+	local hb = inst.Name == "Hitbox" and inst or inst:FindFirstChild("Hitbox", true)
+	if hb and hb:IsA("BasePart") and not hb:GetAttribute("SnareDisabled") then
+		hb:SetAttribute("SnareDisabled", true)
+		hb.CanTouch = false
+	end
+end
+
+function ign.snare(state)
+	active_snare = state
+	disconnect_list(conns_snare)
+
+	if active_snare then
+		local rooms = ws:FindFirstChild("CurrentRooms") or ws
+		for _, inst in ipairs(rooms:GetDescendants()) do
+			if not active_snare then break end
+			if inst.Name == "Snare" or (inst.Name == "Hitbox" and inst:FindFirstAncestor("Snare")) then
+				disable_snare(inst)
+			end
+		end
+
+		local c = (ws:FindFirstChild("CurrentRooms") or ws).DescendantAdded:Connect(function(inst)
+			if active_snare and (inst.Name == "Snare" or inst.Name == "Hitbox") then
+				disable_snare(inst)
+			end
+		end)
+		table.insert(conns_snare, c)
+	end
+end
+
+local function disable_dupe(inst)
+	if not inst then return end
+	local door = nil
+	if inst.Name == "DoorFake" or inst.Name == "FakeDoor" then
+		door = inst
+	elseif inst.Name == "Hidden" and inst.Parent and (inst.Parent.Name == "DoorFake" or inst.Parent.Name == "FakeDoor") then
+		door = inst.Parent
+	end
+
+	if door then
+		local hidden = door:FindFirstChild("Hidden")
+		if hidden and hidden:IsA("BasePart") and not hidden:GetAttribute("DupeDisabled") then
+			hidden:SetAttribute("DupeDisabled", true)
+			hidden.CanTouch = false
+		end
+	end
+end
+
+function ign.dupe(state)
+	active_dupe = state
+	disconnect_list(conns_dupe)
+
+	local rooms = ws:FindFirstChild("CurrentRooms") or ws
+
+	if active_dupe then
+		for _, inst in ipairs(rooms:GetDescendants()) do
+			if not active_dupe then break end
+			if inst.Name == "DoorFake" or inst.Name == "FakeDoor" or inst.Name == "Hidden" then
+				disable_dupe(inst)
+			end
+		end
+
+		local c = rooms.DescendantAdded:Connect(function(inst)
+			if active_dupe and (inst.Name == "DoorFake" or inst.Name == "FakeDoor" or inst.Name == "Hidden") then
+				disable_dupe(inst)
+			end
+		end)
+		table.insert(conns_dupe, c)
+	else
+		for _, inst in ipairs(rooms:GetDescendants()) do
+			if inst.Name == "Hidden" and inst.Parent and (inst.Parent.Name == "DoorFake" or inst.Parent.Name == "FakeDoor") then
+				if inst:IsA("BasePart") and inst:GetAttribute("DupeDisabled") then
+					inst:SetAttribute("DupeDisabled", nil)
+					inst.CanTouch = true
 				end
 			end
 		end
 	end
 end
-purge()
 
-local lib = {}
-lib.__index = lib
-
-local theme = {
-	bg = Color3.fromRGB(15, 12, 22),
-	sidebar = Color3.fromRGB(20, 16, 30),
-	sec = Color3.fromRGB(26, 21, 39),
-	elm = Color3.fromRGB(33, 26, 50),
-	elm_hover = Color3.fromRGB(42, 34, 63),
-	stroke = Color3.fromRGB(60, 47, 89),
-	accent = Color3.fromRGB(142, 82, 242),
-	txt = Color3.fromRGB(245, 242, 255),
-	sub = Color3.fromRGB(145, 134, 172),
-	font = Enum.Font.GothamMedium,
-	bold = Enum.Font.GothamBold
-}
-
-local function tw(obj, dur, props, style, dir)
-	local info = TweenInfo.new(dur or 0.2, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out)
-	local tween = ts:Create(obj, info, props)
-	tween:Play()
-	return tween
+local function get_eyes()
+	return ws:FindFirstChild("Eyes")
+		or ws:FindFirstChild("Lookman")
+		or ws:FindFirstChild("BackdoorLookman")
 end
 
-local notif_container
-local function get_notif_holder()
-	if notif_container and notif_container.Parent then return notif_container end
-	local scr = Instance.new("ScreenGui")
-	scr.Name = "ui_notifs"
-	scr.ResetOnSpawn = false
-	scr.DisplayOrder = 999
-	scr.Parent = cg
-
-	notif_container = Instance.new("Frame")
-	notif_container.Size = UDim2.new(0, 260, 1, -20)
-	notif_container.Position = UDim2.new(1, -270, 0, 10)
-	notif_container.BackgroundTransparency = 1
-	notif_container.Parent = scr
-
-	local layout = Instance.new("UIListLayout")
-	layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-	layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	layout.Padding = UDim.new(0, 8)
-	layout.Parent = notif_container
-
-	return notif_container
+local function is_eyes_visible(inst)
+	if not inst then return false end
+	local part = inst:FindFirstChild("Core") or inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart")
+	if not part then return false end
+	local cam = ws.CurrentCamera
+	if not cam then return false end
+	local pos, on_screen = cam:WorldToViewportPoint(part.Position)
+	return on_screen and pos.Z > 0
 end
 
-function lib.notify(cfg)
-	cfg = typeof(cfg) == "table" and cfg or { Title = "Notice", Content = tostring(cfg), Duration = 3 }
-	local holder = get_notif_holder()
+function ign.eyes(state)
+	active_eyes = state
+	disconnect_list(conns_eyes)
 
-	local n = Instance.new("Frame")
-	n.Size = UDim2.new(1, 0, 0, 0)
-	n.AutomaticSize = Enum.AutomaticSize.Y
-	n.BackgroundColor3 = theme.sec
-	n.BackgroundTransparency = 1
-	n.Parent = holder
+	if active_eyes then
+		if not fake_motor and real_motor.Name == "MotorReplication" then
+			fake_motor = Instance.new("RemoteEvent")
+			fake_motor.Name = "MotorReplication"
+			real_motor.Name = "MotorReplication_Real"
+			fake_motor.Parent = remotes
+		end
 
-	local crn = Instance.new("UICorner")
-	crn.CornerRadius = UDim.new(0, 8)
-	crn.Parent = n
-
-	local stk = Instance.new("UIStroke")
-	stk.Color = theme.accent
-	stk.Transparency = 1
-	stk.Thickness = 1
-	stk.Parent = n
-
-	local pad = Instance.new("UIPadding")
-	pad.PaddingTop = UDim.new(0, 10)
-	pad.PaddingBottom = UDim.new(0, 10)
-	pad.PaddingLeft = UDim.new(0, 12)
-	pad.PaddingRight = UDim.new(0, 12)
-	pad.Parent = n
-
-	local title = Instance.new("TextLabel")
-	title.Text = cfg.Title or "Notice"
-	title.Font = theme.bold
-	title.TextSize = 13
-	title.TextColor3 = theme.txt
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.BackgroundTransparency = 1
-	title.Size = UDim2.new(1, 0, 0, 16)
-	title.Parent = n
-
-	local desc = Instance.new("TextLabel")
-	desc.Text = cfg.Content or ""
-	desc.Font = theme.font
-	desc.TextSize = 11
-	desc.TextColor3 = theme.sub
-	desc.TextXAlignment = Enum.TextXAlignment.Left
-	desc.TextWrapped = true
-	desc.AutomaticSize = Enum.AutomaticSize.Y
-	desc.Size = UDim2.new(1, 0, 0, 0)
-	desc.Position = UDim2.new(0, 0, 0, 20)
-	desc.BackgroundTransparency = 1
-	desc.Parent = n
-
-	tw(n, 0.3, { BackgroundTransparency = 0 })
-	tw(stk, 0.3, { Transparency = 0.2 })
-
-	task.delay(cfg.Duration or 3, function()
-		tw(n, 0.3, { BackgroundTransparency = 1 })
-		tw(stk, 0.3, { Transparency = 1 })
-		task.wait(0.3)
-		n:Destroy()
-	end)
-end
-lib.Notify = lib.notify
-
-function lib.new(cfg)
-	if type(cfg) ~= "table" then cfg = {} end
-	local title_text = cfg.Title or "ui"
-
-	local scr = Instance.new("ScreenGui")
-	scr.Name = "ui"
-	scr.ResetOnSpawn = false
-	scr.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	scr.Parent = cg
-
-	local main = Instance.new("Frame")
-	main.Name = "main"
-	main.Size = UDim2.new(0, 560, 0, 380)
-	main.Position = UDim2.new(0.5, -280, 0.5, -190)
-	main.BackgroundColor3 = theme.bg
-	main.BorderSizePixel = 0
-	main.ClipsDescendants = true
-	main.Parent = scr
-
-	local main_crn = Instance.new("UICorner")
-	main_crn.CornerRadius = UDim.new(0, 10)
-	main_crn.Parent = main
-
-	local main_stk = Instance.new("UIStroke")
-	main_stk.Color = theme.stroke
-	main_stk.Thickness = 1.2
-	main_stk.Parent = main
-
-	local topbar = Instance.new("Frame")
-	topbar.Name = "topbar"
-	topbar.Size = UDim2.new(1, 0, 0, 42)
-	topbar.BackgroundColor3 = theme.sidebar
-	topbar.BorderSizePixel = 0
-	topbar.Parent = main
-
-	local top_div = Instance.new("Frame")
-	top_div.Size = UDim2.new(1, 0, 0, 1)
-	top_div.Position = UDim2.new(0, 0, 1, -1)
-	top_div.BackgroundColor3 = theme.stroke
-	top_div.BorderSizePixel = 0
-	top_div.Parent = topbar
-
-	local title_lbl = Instance.new("TextLabel")
-	title_lbl.Text = title_text
-	title_lbl.Font = theme.bold
-	title_lbl.TextSize = 13
-	title_lbl.TextColor3 = theme.txt
-	title_lbl.Position = UDim2.new(0, 16, 0.5, 0)
-	title_lbl.AnchorPoint = Vector2.new(0, 0.5)
-	title_lbl.AutomaticSize = Enum.AutomaticSize.X
-	title_lbl.BackgroundTransparency = 1
-	title_lbl.Parent = topbar
-
-	local author = Instance.new("TextLabel")
-	author.Text = "By dimhev"
-	author.Font = theme.bold
-	author.TextSize = 13
-	author.TextColor3 = Color3.fromRGB(255, 255, 255)
-	author.Position = UDim2.new(0, 16, 0.5, 0) 
-	author.AnchorPoint = Vector2.new(0, 0.5)
-	author.AutomaticSize = Enum.AutomaticSize.XY
-	author.BackgroundTransparency = 1
-	author.Parent = topbar
-
-	local shimmer = Instance.new("UIGradient")
-	shimmer.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(150, 85, 245)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(240, 205, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 55, 215))
-	})
-	shimmer.Offset = Vector2.new(-1, 0)
-	shimmer.Parent = author
-
-	ts:Create(shimmer, TweenInfo.new(2.8, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true), {
-		Offset = Vector2.new(1, 0)
-	}):Play()
-
-	local ctrl_wrap = Instance.new("Frame")
-	ctrl_wrap.Size = UDim2.new(0, 60, 1, 0)
-	ctrl_wrap.Position = UDim2.new(1, -70, 0, 0)
-	ctrl_wrap.BackgroundTransparency = 1
-	ctrl_wrap.Parent = topbar
-
-	local function make_icon_btn(txt, x_pos, click_cb)
-		local b = Instance.new("TextButton")
-		b.Size = UDim2.new(0, 24, 0, 24)
-		b.Position = UDim2.new(0, x_pos, 0.5, -12)
-		b.BackgroundColor3 = theme.elm
-		b.Text = txt
-		b.Font = theme.bold
-		b.TextSize = 12
-		b.TextColor3 = theme.sub
-		b.AutoButtonColor = false
-		b.Parent = ctrl_wrap
-
-		local c = Instance.new("UICorner")
-		c.CornerRadius = UDim.new(0, 6)
-		c.Parent = b
-
-		local s = Instance.new("UIStroke")
-		s.Color = theme.stroke
-		s.Thickness = 1
-		s.Parent = b
-
-		b.MouseEnter:Connect(function()
-			tw(b, 0.15, { BackgroundColor3 = theme.elm_hover, TextColor3 = theme.txt })
+		local c = run.RenderStepped:Connect(function()
+			if active_eyes then
+				local e = get_eyes()
+				if e and is_eyes_visible(e) then
+					for _ = 1, 2 do
+						if is_old then
+							real_motor:FireServer(0, -90, 0, false)
+						else
+							real_motor:FireServer(-650)
+						end
+					end
+				end
+			end
 		end)
-		b.MouseLeave:Connect(function()
-			tw(b, 0.15, { BackgroundColor3 = theme.elm, TextColor3 = theme.sub })
-		end)
-		b.MouseButton1Click:Connect(click_cb)
-		return b
+		table.insert(conns_eyes, c)
+	else
+		if fake_motor then
+			fake_motor:Destroy()
+			fake_motor = nil
+			if real_motor then
+				real_motor.Name = "MotorReplication"
+			end
+		end
+	end
+end
+
+local function get_base_speed(char)
+	local speed = 15
+	if is_crouching(char) then
+		speed = speed - 5
+	end
+	return speed
+end
+
+function ign.set_speed(val)
+	speed_boost = math.clamp(tonumber(val) or 0, MIN_BOOST, MAX_BOOST)
+	local char = lp.Character
+	if char then
+		char:SetAttribute("SpeedBoost", active_speed and speed_boost or 0)
+	end
+end
+
+function ign.speed(state, boost)
+	active_speed = state
+	if boost ~= nil then
+		ign.set_speed(boost)
+	end
+	disconnect_list(conns_speed)
+
+	local char = lp.Character
+	if char then
+		char:SetAttribute("SpeedBoost", active_speed and speed_boost or 0)
 	end
 
-	local is_open = true
-	local is_animating = false
-	local orig_size = main.Size
+	if active_speed then
+		local last_crouch = 0
 
-	local function toggle_ui()
-		if is_animating then return end
-		is_animating = true
-		is_open = not is_open
-		if is_open then
-			main.Visible = true
-			tw(main, 0.25, { Size = orig_size }, Enum.EasingStyle.Quart)
-			task.wait(0.25)
-		else
-			tw(main, 0.2, { Size = UDim2.new(orig_size.X.Scale, orig_size.X.Offset, 0, 0) }, Enum.EasingStyle.Quart)
+		local c_render = run.RenderStepped:Connect(function()
+			if not active_speed then return end
+			local c = lp.Character
+			if not c then return end
+
+			local hum = c:FindFirstChildOfClass("Humanoid")
+			if hum and speed_boost > 0 then
+				hum.WalkSpeed = get_base_speed(c) + speed_boost
+			end
+
+			if crouch_rem and (tick() - last_crouch > 0.15) then
+				last_crouch = tick()
+				local sending_crouch = active_rush or is_crouching(c)
+				crouch_rem:FireServer(sending_crouch, true)
+			end
+		end)
+		table.insert(conns_speed, c_render)
+
+		local c_char = lp.CharacterAdded:Connect(function(new_char)
 			task.wait(0.2)
-			main.Visible = false
+			if active_speed then
+				new_char:SetAttribute("SpeedBoost", speed_boost)
+			end
+		end)
+		table.insert(conns_speed, c_char)
+	else
+		if char then
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum then
+				hum.WalkSpeed = get_base_speed(char)
+			end
 		end
-		is_animating = false
 	end
-
-	make_icon_btn("-", 0, toggle_ui)
-	make_icon_btn("x", 30, function()
-		tw(main, 0.15, { Size = UDim2.new(orig_size.X.Scale, orig_size.X.Offset, 0, 0) })
-		task.wait(0.15)
-		scr:Destroy()
-	end)
-
-	local dragging, drag_start, start_pos
-	topbar.InputBegan:Connect(function(inp)
-		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			drag_start = inp.Position
-			start_pos = main.Position
-			inp.Changed:Connect(function()
-				if inp.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
-		end
-	end)
-
-	uis.InputChanged:Connect(function(inp)
-		if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
-			local delta = inp.Position - drag_start
-			main.Position = UDim2.new(start_pos.X.Scale, start_pos.X.Offset + delta.X, start_pos.Y.Scale, start_pos.Y.Offset + delta.Y)
-		end
-	end)
-
-	uis.InputBegan:Connect(function(inp, gpe)
-		if not gpe and inp.KeyCode == Enum.KeyCode.RightShift then
-			toggle_ui()
-		end
-	end)
-
-	local sidebar = Instance.new("Frame")
-	sidebar.Name = "sidebar"
-	sidebar.Size = UDim2.new(0, 140, 1, -42)
-	sidebar.Position = UDim2.new(0, 0, 0, 42)
-	sidebar.BackgroundColor3 = theme.sidebar
-	sidebar.BorderSizePixel = 0
-	sidebar.Parent = main
-
-	local side_div = Instance.new("Frame")
-	side_div.Size = UDim2.new(0, 1, 1, 0)
-	side_div.Position = UDim2.new(1, -1, 0, 0)
-	side_div.BackgroundColor3 = theme.stroke
-	side_div.BorderSizePixel = 0
-	side_div.Parent = sidebar
-
-	local tab_scroll = Instance.new("ScrollingFrame")
-	tab_scroll.Size = UDim2.new(1, 0, 1, 0)
-	tab_scroll.BackgroundTransparency = 1
-	tab_scroll.BorderSizePixel = 0
-	tab_scroll.ScrollBarThickness = 0
-	tab_scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	tab_scroll.Parent = sidebar
-
-	local tab_layout = Instance.new("UIListLayout")
-	tab_layout.Padding = UDim.new(0, 4)
-	tab_layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	tab_layout.SortOrder = Enum.SortOrder.LayoutOrder
-	tab_layout.Parent = tab_scroll
-
-	local tab_pad = Instance.new("UIPadding")
-	tab_pad.PaddingTop = UDim.new(0, 8)
-	tab_pad.PaddingBottom = UDim.new(0, 8)
-	tab_pad.Parent = tab_scroll
-
-	local pages_folder = Instance.new("Frame")
-	pages_folder.Name = "pages"
-	pages_folder.Size = UDim2.new(1, -140, 1, -42)
-	pages_folder.Position = UDim2.new(0, 140, 0, 42)
-	pages_folder.BackgroundTransparency = 1
-	pages_folder.Parent = main
-
-	local window = {
-		Tabs = {},
-		ActiveTab = nil,
-		gui = scr,
-		ScreenGui = scr,
-		main = main,
-		toggle_ui = toggle_ui
-	}
-
-	function window:create_tab(name)
-		local tab_btn = Instance.new("TextButton")
-		tab_btn.Size = UDim2.new(1, -14, 0, 32)
-		tab_btn.BackgroundColor3 = theme.sidebar
-		tab_btn.AutoButtonColor = false
-		tab_btn.Text = ""
-		tab_btn.Parent = tab_scroll
-
-		local tb_crn = Instance.new("UICorner")
-		tb_crn.CornerRadius = UDim.new(0, 6)
-		tb_crn.Parent = tab_btn
-
-		local active_bar = Instance.new("Frame")
-		active_bar.Size = UDim2.new(0, 3, 0, 14)
-		active_bar.Position = UDim2.new(0, 0, 0.5, -7)
-		active_bar.BackgroundColor3 = theme.accent
-		active_bar.BackgroundTransparency = 1
-		active_bar.Parent = tab_btn
-
-		local ab_crn = Instance.new("UICorner")
-		ab_crn.CornerRadius = UDim.new(1, 0)
-		ab_crn.Parent = active_bar
-
-		local tab_title = Instance.new("TextLabel")
-		tab_title.Text = name
-		tab_title.Font = theme.font
-		tab_title.TextSize = 12
-		tab_title.TextColor3 = theme.sub
-		tab_title.Position = UDim2.new(0, 12, 0, 0)
-		tab_title.Size = UDim2.new(1, -16, 1, 0)
-		tab_title.BackgroundTransparency = 1
-		tab_title.TextXAlignment = Enum.TextXAlignment.Left
-		tab_title.TextTruncate = Enum.TextTruncate.AtEnd
-		tab_title.Parent = tab_btn
-
-		local page = Instance.new("ScrollingFrame")
-		page.Name = name .. "_page"
-		page.Size = UDim2.new(1, 0, 1, 0)
-		page.BackgroundTransparency = 1
-		page.BorderSizePixel = 0
-		page.ScrollBarThickness = 3
-		page.ScrollBarImageColor3 = theme.accent
-		page.Visible = false
-		page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-		page.CanvasSize = UDim2.new(0, 0, 0, 0)
-		page.Parent = pages_folder
-
-		local page_layout = Instance.new("UIListLayout")
-		page_layout.Padding = UDim.new(0, 6)
-		page_layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-		page_layout.SortOrder = Enum.SortOrder.LayoutOrder
-		page_layout.Parent = page
-
-		local page_pad = Instance.new("UIPadding")
-		page_pad.PaddingTop = UDim.new(0, 10)
-		page_pad.PaddingBottom = UDim.new(0, 12)
-		page_pad.PaddingLeft = UDim.new(0, 12)
-		page_pad.PaddingRight = UDim.new(0, 12)
-		page_pad.Parent = page
-
-		local tab_obj = {
-			Button = tab_btn,
-			Page = page
-		}
-
-		local function select_tab()
-			for _, t in ipairs(window.Tabs) do
-				t.Page.Visible = false
-				tw(t.Button, 0.2, { BackgroundColor3 = theme.sidebar })
-				tw(t.Button:FindFirstChild("TextLabel"), 0.2, { TextColor3 = theme.sub })
-				tw(t.Button:FindFirstChild("Frame"), 0.2, { BackgroundTransparency = 1 })
-			end
-			page.Visible = true
-			tw(tab_btn, 0.2, { BackgroundColor3 = theme.sec })
-			tw(tab_title, 0.2, { TextColor3 = theme.txt })
-			tw(active_bar, 0.2, { BackgroundTransparency = 0 })
-			window.ActiveTab = tab_obj
-		end
-
-		tab_btn.MouseButton1Click:Connect(select_tab)
-		table.insert(window.Tabs, tab_obj)
-
-		if #window.Tabs == 1 then
-			select_tab()
-		end
-
-		function tab_obj:create_section(sec_name)
-			local sec = Instance.new("Frame")
-			sec.Size = UDim2.new(1, 0, 0, 24)
-			sec.BackgroundTransparency = 1
-			sec.Parent = page
-
-			local s_lbl = Instance.new("TextLabel")
-			s_lbl.Text = sec_name
-			s_lbl.Font = theme.bold
-			s_lbl.TextSize = 11
-			s_lbl.TextColor3 = theme.accent
-			s_lbl.Position = UDim2.new(0, 4, 0.5, 0)
-			s_lbl.AnchorPoint = Vector2.new(0, 0.5)
-			s_lbl.AutomaticSize = Enum.AutomaticSize.X
-			s_lbl.BackgroundTransparency = 1
-			s_lbl.Parent = sec
-
-			local line = Instance.new("Frame")
-			line.Size = UDim2.new(1, -(s_lbl.AbsoluteSize.X + 16), 0, 1)
-			line.Position = UDim2.new(1, 0, 0.5, 0)
-			line.AnchorPoint = Vector2.new(1, 0.5)
-			line.BackgroundColor3 = theme.stroke
-			line.BorderSizePixel = 0
-			line.Parent = sec
-
-			s_lbl:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-				line.Size = UDim2.new(1, -(s_lbl.AbsoluteSize.X + 16), 0, 1)
-			end)
-		end
-		tab_obj.CreateSection = tab_obj.create_section
-
-		function tab_obj:create_button(btn_name, cb)
-			cb = cb or function() end
-			local btn = Instance.new("TextButton")
-			btn.Size = UDim2.new(1, 0, 0, 32)
-			btn.BackgroundColor3 = theme.elm
-			btn.AutoButtonColor = false
-			btn.Text = ""
-			btn.Parent = page
-
-			local crn = Instance.new("UICorner")
-			crn.CornerRadius = UDim.new(0, 6)
-			crn.Parent = btn
-
-			local stk = Instance.new("UIStroke")
-			stk.Color = theme.stroke
-			stk.Thickness = 1
-			stk.Parent = btn
-
-			local lbl = Instance.new("TextLabel")
-			lbl.Text = btn_name
-			lbl.Font = theme.font
-			lbl.TextSize = 12
-			lbl.TextColor3 = theme.txt
-			lbl.Size = UDim2.new(1, -20, 1, 0)
-			lbl.Position = UDim2.new(0, 10, 0, 0)
-			lbl.BackgroundTransparency = 1
-			lbl.TextXAlignment = Enum.TextXAlignment.Left
-			lbl.Parent = btn
-
-			btn.MouseEnter:Connect(function()
-				tw(btn, 0.15, { BackgroundColor3 = theme.elm_hover })
-				tw(stk, 0.15, { Color = theme.accent })
-			end)
-			btn.MouseLeave:Connect(function()
-				tw(btn, 0.15, { BackgroundColor3 = theme.elm })
-				tw(stk, 0.15, { Color = theme.stroke })
-			end)
-			btn.MouseButton1Down:Connect(function()
-				tw(btn, 0.1, { Size = UDim2.new(1, -4, 0, 30) })
-			end)
-			btn.MouseButton1Up:Connect(function()
-				tw(btn, 0.1, { Size = UDim2.new(1, 0, 0, 32) })
-				cb()
-			end)
-		end
-		tab_obj.CreateButton = tab_obj.create_button
-
-		function tab_obj:create_toggle(t_name, def, cb, desc)
-			cb = cb or function() end
-			local state = def or false
-
-			local box = Instance.new("TextButton")
-			box.Size = desc and UDim2.new(1, 0, 0, 42) or UDim2.new(1, 0, 0, 32)
-			box.BackgroundColor3 = theme.elm
-			box.AutoButtonColor = false
-			box.Text = ""
-			box.Parent = page
-
-			local crn = Instance.new("UICorner")
-			crn.CornerRadius = UDim.new(0, 6)
-			crn.Parent = box
-
-			local stk = Instance.new("UIStroke")
-			stk.Color = theme.stroke
-			stk.Thickness = 1
-			stk.Parent = box
-
-			local lbl = Instance.new("TextLabel")
-			lbl.Text = t_name
-			lbl.Font = theme.font
-			lbl.TextSize = 12
-			lbl.TextColor3 = theme.txt
-			lbl.Position = desc and UDim2.new(0, 10, 0, 5) or UDim2.new(0, 10, 0, 0)
-			lbl.Size = desc and UDim2.new(1, -60, 0, 16) or UDim2.new(1, -60, 1, 0)
-			lbl.BackgroundTransparency = 1
-			lbl.TextXAlignment = Enum.TextXAlignment.Left
-			lbl.Parent = box
-
-			if desc then
-				local d_lbl = Instance.new("TextLabel")
-				d_lbl.Text = desc
-				d_lbl.Font = theme.font
-				d_lbl.TextSize = 10
-				d_lbl.TextColor3 = theme.sub
-				d_lbl.Position = UDim2.new(0, 10, 0, 22)
-				d_lbl.Size = UDim2.new(1, -60, 0, 14)
-				d_lbl.BackgroundTransparency = 1
-				d_lbl.TextXAlignment = Enum.TextXAlignment.Left
-				d_lbl.TextTruncate = Enum.TextTruncate.AtEnd
-				d_lbl.Parent = box
-			end
-
-			local sw = Instance.new("Frame")
-			sw.Size = UDim2.new(0, 36, 0, 18)
-			sw.Position = UDim2.new(1, -46, 0.5, -9)
-			sw.BackgroundColor3 = state and theme.accent or theme.sec
-			sw.Parent = box
-
-			local sw_crn = Instance.new("UICorner")
-			sw_crn.CornerRadius = UDim.new(1, 0)
-			sw_crn.Parent = sw
-
-			local dot = Instance.new("Frame")
-			dot.Size = UDim2.new(0, 14, 0, 14)
-			dot.Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-			dot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-			dot.Parent = sw
-
-			local dot_crn = Instance.new("UICorner")
-			dot_crn.CornerRadius = UDim.new(1, 0)
-			dot_crn.Parent = dot
-
-			local function update()
-				tw(sw, 0.18, { BackgroundColor3 = state and theme.accent or theme.sec })
-				tw(dot, 0.18, { Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7) })
-				cb(state)
-			end
-
-			box.MouseButton1Click:Connect(function()
-				state = not state
-				update()
-			end)
-
-			return {
-				Set = function(v)
-					state = v
-					update()
-				end
-			}
-		end
-		tab_obj.CreateToggle = tab_obj.create_toggle
-		tab_obj.toggle = tab_obj.create_toggle
-
-		function tab_obj:create_slider(s_name, min, max, def, cb)
-			cb = cb or function() end
-			min = min or 0
-			max = max or 100
-			def = math.clamp(def or min, min, max)
-
-			local box = Instance.new("Frame")
-			box.Size = UDim2.new(1, 0, 0, 46)
-			box.BackgroundColor3 = theme.elm
-			box.Parent = page
-
-			local crn = Instance.new("UICorner")
-			crn.CornerRadius = UDim.new(0, 6)
-			crn.Parent = box
-
-			local stk = Instance.new("UIStroke")
-			stk.Color = theme.stroke
-			stk.Thickness = 1
-			stk.Parent = box
-
-			local lbl = Instance.new("TextLabel")
-			lbl.Text = s_name
-			lbl.Font = theme.font
-			lbl.TextSize = 12
-			lbl.TextColor3 = theme.txt
-			lbl.Position = UDim2.new(0, 10, 0, 6)
-			lbl.Size = UDim2.new(1, -70, 0, 16)
-			lbl.BackgroundTransparency = 1
-			lbl.TextXAlignment = Enum.TextXAlignment.Left
-			lbl.Parent = box
-
-			local val_lbl = Instance.new("TextLabel")
-			val_lbl.Text = tostring(def)
-			val_lbl.Font = theme.bold
-			val_lbl.TextSize = 12
-			val_lbl.TextColor3 = theme.accent
-			val_lbl.Position = UDim2.new(1, -55, 0, 6)
-			val_lbl.Size = UDim2.new(0, 45, 0, 16)
-			val_lbl.BackgroundTransparency = 1
-			val_lbl.TextXAlignment = Enum.TextXAlignment.Right
-			val_lbl.Parent = box
-
-			local track = Instance.new("TextButton")
-			track.Size = UDim2.new(1, -20, 0, 6)
-			track.Position = UDim2.new(0, 10, 0, 28)
-			track.BackgroundColor3 = theme.sec
-			track.AutoButtonColor = false
-			track.Text = ""
-			track.Parent = box
-
-			local t_crn = Instance.new("UICorner")
-			t_crn.CornerRadius = UDim.new(1, 0)
-			t_crn.Parent = track
-
-			local pct = math.clamp((def - min) / (max - min), 0, 1)
-			local fill = Instance.new("Frame")
-			fill.Size = UDim2.new(pct, 0, 1, 0)
-			fill.BackgroundColor3 = theme.accent
-			fill.BorderSizePixel = 0
-			fill.Parent = track
-
-			local f_crn = Instance.new("UICorner")
-			f_crn.CornerRadius = UDim.new(1, 0)
-			f_crn.Parent = fill
-
-			local dragging = false
-			local function apply_pos(inp)
-				local x_ratio = math.clamp((inp.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-				fill.Size = UDim2.new(x_ratio, 0, 1, 0)
-				local current_val = math.floor(min + (max - min) * x_ratio)
-				val_lbl.Text = tostring(current_val)
-				cb(current_val)
-			end
-
-			track.InputBegan:Connect(function(inp)
-				if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-					dragging = true
-					apply_pos(inp)
-				end
-			end)
-
-			uis.InputChanged:Connect(function(inp)
-				if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
-					apply_pos(inp)
-				end
-			end)
-
-			uis.InputEnded:Connect(function(inp)
-				if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-					dragging = false
-				end
-			end)
-		end
-		tab_obj.CreateSlider = tab_obj.create_slider
-		tab_obj.slider = tab_obj.create_slider
-
-		function tab_obj:create_input(i_name, placeholder, def, cb)
-			cb = cb or function() end
-
-			local box = Instance.new("Frame")
-			box.Size = UDim2.new(1, 0, 0, 34)
-			box.BackgroundColor3 = theme.elm
-			box.Parent = page
-
-			local crn = Instance.new("UICorner")
-			crn.CornerRadius = UDim.new(0, 6)
-			crn.Parent = box
-
-			local stk = Instance.new("UIStroke")
-			stk.Color = theme.stroke
-			stk.Thickness = 1
-			stk.Parent = box
-
-			local lbl = Instance.new("TextLabel")
-			lbl.Text = i_name
-			lbl.Font = theme.font
-			lbl.TextSize = 12
-			lbl.TextColor3 = theme.txt
-			lbl.Position = UDim2.new(0, 10, 0, 0)
-			lbl.Size = UDim2.new(0.5, -10, 1, 0)
-			lbl.BackgroundTransparency = 1
-			lbl.TextXAlignment = Enum.TextXAlignment.Left
-			lbl.Parent = box
-
-			local tb = Instance.new("TextBox")
-			tb.Size = UDim2.new(0, 120, 0, 22)
-			tb.Position = UDim2.new(1, -130, 0.5, -11)
-			tb.BackgroundColor3 = theme.sec
-			tb.Text = def or ""
-			tb.PlaceholderText = placeholder or "..."
-			tb.Font = theme.font
-			tb.TextSize = 11
-			tb.TextColor3 = theme.txt
-			tb.PlaceholderColor3 = theme.sub
-			tb.ClearTextOnFocus = false
-			tb.Parent = box
-
-			local tb_crn = Instance.new("UICorner")
-			tb_crn.CornerRadius = UDim.new(0, 4)
-			tb_crn.Parent = tb
-
-			local tb_stk = Instance.new("UIStroke")
-			tb_stk.Color = theme.stroke
-			tb_stk.Thickness = 1
-			tb_stk.Parent = tb
-
-			tb.Focused:Connect(function()
-				tw(tb_stk, 0.15, { Color = theme.accent })
-			end)
-			tb.FocusLost:Connect(function(enter)
-				tw(tb_stk, 0.15, { Color = theme.stroke })
-				cb(tb.Text, enter)
-			end)
-		end
-		tab_obj.CreateInput = tab_obj.create_input
-		tab_obj.input = tab_obj.create_input
-
-		function tab_obj:create_paragraph(title_p, desc_p)
-			local box = Instance.new("Frame")
-			box.Size = UDim2.new(1, 0, 0, 0)
-			box.AutomaticSize = Enum.AutomaticSize.Y
-			box.BackgroundColor3 = theme.elm
-			box.Parent = page
-
-			local crn = Instance.new("UICorner")
-			crn.CornerRadius = UDim.new(0, 6)
-			crn.Parent = box
-
-			local stk = Instance.new("UIStroke")
-			stk.Color = theme.stroke
-			stk.Thickness = 1
-			stk.Parent = box
-
-			local pad = Instance.new("UIPadding")
-			pad.PaddingTop = UDim.new(0, 8)
-			pad.PaddingBottom = UDim.new(0, 8)
-			pad.PaddingLeft = UDim.new(0, 10)
-			pad.PaddingRight = UDim.new(0, 10)
-			pad.Parent = box
-
-			local t = Instance.new("TextLabel")
-			t.Text = title_p
-			t.Font = theme.bold
-			t.TextSize = 12
-			t.TextColor3 = theme.txt
-			t.Size = UDim2.new(1, 0, 0, 14)
-			t.BackgroundTransparency = 1
-			t.TextXAlignment = Enum.TextXAlignment.Left
-			t.Parent = box
-
-			local d = Instance.new("TextLabel")
-			d.Text = desc_p
-			d.Font = theme.font
-			d.TextSize = 11
-			d.TextColor3 = theme.sub
-			d.Position = UDim2.new(0, 0, 0, 18)
-			d.Size = UDim2.new(1, 0, 0, 0)
-			d.AutomaticSize = Enum.AutomaticSize.Y
-			d.BackgroundTransparency = 1
-			d.TextXAlignment = Enum.TextXAlignment.Left
-			d.TextWrapped = true
-			d.Parent = box
-		end
-		tab_obj.CreateParagraph = tab_obj.create_paragraph
-		tab_obj.warn = function(self, text) tab_obj:create_paragraph("Warning", text) end
-
-		return tab_obj
-	end
-	window.CreateTab = window.create_tab
-
-	return window
 end
-lib.CreateWindow = function(self, cfg)
-	if type(self) == "table" and self ~= lib then
-		cfg = self
-	end
-	return lib.new(cfg)
-end
-lib.create_window = lib.CreateWindow
 
-return lib
+local function cleanup_rush_clones()
+	if col_clone and col_clone.Parent then
+		col_clone:Destroy()
+		col_clone = nil
+	end
+	if col_part_clone and col_part_clone.Parent then
+		col_part_clone:Destroy()
+		col_part_clone = nil
+	end
+end
+
+function ign.rush(state)
+	active_rush = state
+	disconnect_list(conns_rush)
+
+	local char = lp.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local real_col = char and char:FindFirstChild("Collision")
+	local real_col_part = char and (char:FindFirstChild("CollisionPart") or real_col)
+	local lower_torso = char and char:FindFirstChild("LowerTorso")
+	local root_joint = lower_torso and lower_torso:FindFirstChild("Root")
+
+	if active_rush then
+		if not char or not hum or not root or not real_col then
+			active_rush = false
+			return
+		end
+
+		if root_joint then
+			original_c1 = root_joint.C1
+		end
+
+		cleanup_rush_clones()
+
+		col_clone = real_col:Clone()
+		col_clone.Name = "CollisionClone"
+		col_clone.Massless = true
+		col_clone.Parent = char
+
+		col_part_clone = real_col_part:Clone()
+		col_part_clone.Name = "CollisionPartClone"
+		col_part_clone.CanCollide = false
+		col_part_clone.Massless = true
+		col_part_clone.Parent = char
+
+		if col_part_clone:FindFirstChild("CollisionCrouch") then
+			col_part_clone.CollisionCrouch:Destroy()
+		end
+
+		root.CFrame = root.CFrame * CFrame.new(0, -2.346, 0)
+		hum.HipHeight = 0.05
+
+		if crouch_rem then
+			crouch_rem:FireServer(true, true)
+		end
+
+		local last_crouch_send = 0
+
+		local c_render = run.RenderStepped:Connect(function()
+			if not active_rush then return end
+			local c = lp.Character
+			if not c then return end
+
+			local r = c:FindFirstChild("HumanoidRootPart")
+			local h = c:FindFirstChildOfClass("Humanoid")
+			local col = c:FindFirstChild("Collision")
+			local col_p = c:FindFirstChild("CollisionPart")
+			local lt = c:FindFirstChild("LowerTorso")
+			local rj = lt and lt:FindFirstChild("Root")
+			if not r or not col or not col_clone then return end
+
+			r.CanCollide = false
+			for _, part in ipairs(c:GetChildren()) do
+				if part:IsA("BasePart") and part ~= col_clone and part ~= col_clone:FindFirstChild("CollisionCrouch") then
+					part.CanCollide = false
+				end
+			end
+
+			col.CanCollide = false
+			if col:FindFirstChild("CollisionCrouch") then
+				col.CollisionCrouch.CanCollide = false
+			end
+
+			local is_crouch = is_crouching(c)
+
+			local clone_crouch = col_clone:FindFirstChild("CollisionCrouch")
+			if clone_crouch then
+				col_clone.CanCollide = not is_crouch
+				clone_crouch.CanCollide = is_crouch
+			else
+				col_clone.CanCollide = not is_crouch
+			end
+
+			if rj and original_c1 then
+				rj.C1 = original_c1 * CFrame.new(0, -2.346, 0)
+			end
+
+			local spoof_y = 2.328
+			col.Position = r.Position + Vector3.new(0, spoof_y, 0)
+			if col_p then
+				col_p.Position = r.Position + Vector3.new(0, spoof_y, 0)
+			end
+
+			if col:FindFirstChild("CollisionCrouch") and clone_crouch then
+				col.CollisionCrouch.Position = r.Position + Vector3.new(0, 1.328, 0)
+				clone_crouch.CollisionGroup = col.CollisionCrouch.CollisionGroup
+			end
+
+			if clone_crouch then
+				clone_crouch.Position = r.Position + Vector3.new(0, 0.75, 0)
+			end
+
+			col_clone.CollisionGroup = col.CollisionGroup
+			col_clone.Position = r.Position + Vector3.new(0, 1.75, 0)
+
+			if crouch_rem and (tick() - last_crouch_send > 0.1) then
+				last_crouch_send = tick()
+				crouch_rem:FireServer(true, true)
+			end
+		end)
+		table.insert(conns_rush, c_render)
+
+	else
+		cleanup_rush_clones()
+
+		if hum and root then
+			root.CFrame = root.CFrame * CFrame.new(0, 2.346, 0)
+			hum.HipHeight = 2.396
+		end
+
+		if real_col and root then
+			real_col.CanCollide = true
+			real_col.Position = root.Position + Vector3.new(0, 0.18, 0)
+			if real_col:FindFirstChild("CollisionCrouch") then
+				real_col.CollisionCrouch.Position = root.Position + Vector3.new(0, -0.982, 0)
+			end
+		end
+
+		if root_joint and original_c1 then
+			root_joint.C1 = original_c1
+		end
+
+		if crouch_rem then
+			crouch_rem:FireServer(is_crouching(char), true)
+		end
+	end
+end
+
+local function get_library_code()
+	local char = lp.Character
+	local bp = lp:FindFirstChild("Backpack")
+	local paper = (char and (char:FindFirstChild("LibraryHintPaper") or char:FindFirstChild("LibraryHintPaperHard")))
+		or (bp and (bp:FindFirstChild("LibraryHintPaper") or bp:FindFirstChild("LibraryHintPaperHard")))
+
+	if not paper or not paper:FindFirstChild("UI") then
+		return nil
+	end
+
+	local pgui = lp:FindFirstChild("PlayerGui")
+	local perm_ui = pgui and pgui:FindFirstChild("PermUI")
+	local hints = perm_ui and perm_ui:FindFirstChild("Hints")
+	if not hints then
+		return nil
+	end
+
+	local fl = gd and gd:FindFirstChild("Floor")
+	local is_fools = fl and fl.Value == "Fools"
+	local len = is_fools and 10 or 5
+
+	local code = {}
+	for i = 1, len do
+		code[i] = "_"
+	end
+
+	local hint_children = hints:GetChildren()
+	local ui_children = paper.UI:GetChildren()
+
+	for _, hint in ipairs(hint_children) do
+		if hint:IsA("ImageLabel") and hint:FindFirstChild("TextLabel") then
+			for _, ui_child in ipairs(ui_children) do
+				if ui_child:IsA("ImageLabel") and ui_child.ImageRectOffset == hint.ImageRectOffset then
+					local idx = tonumber(ui_child.Name)
+					if idx and code[idx] then
+						code[idx] = hint.TextLabel.Text
+					end
+				end
+			end
+		end
+	end
+
+	return table.concat(code)
+end
+
+function ign.library(state, cb)
+	active_library = state
+	if cb then
+		lib_notify_cb = cb
+	end
+	last_lib_code = nil
+
+	if lib_thread then
+		task.cancel(lib_thread)
+		lib_thread = nil
+	end
+
+	if not active_library then return end
+
+	lib_thread = task.spawn(function()
+		local rooms = ws:WaitForChild("CurrentRooms", 10)
+		if not rooms then return end
+
+		while active_library do
+			local cur = tonumber(lp:GetAttribute("CurrentRoom"))
+			if cur == 50 then break end
+			task.wait(0.2)
+		end
+		if not active_library then return end
+
+		local r50 = rooms:WaitForChild("50", 15)
+		if not r50 then return end
+
+		local paper_tries = 0
+		while active_library and not has_hint_paper() and paper_tries < 40 do
+			local paper = r50:FindFirstChild("LibraryHintPaper", true)
+			if paper then
+				tp_and_interact(paper, CFrame.new(0, 2, 0))
+			end
+			paper_tries = paper_tries + 1
+			task.wait(0.15)
+		end
+
+		while active_library do
+			local code = get_library_code()
+			if code and not code:find("_") then
+				last_lib_code = code
+				if lib_notify_cb then
+					lib_notify_cb(code)
+				end
+				break
+			end
+
+			local books = {}
+			for _, desc in ipairs(r50:GetDescendants()) do
+				if desc.Name == "LiveHintBook" and desc.Parent then
+					table.insert(books, desc)
+				end
+			end
+
+			if #books == 0 then
+				task.wait(0.3)
+			end
+
+			for _, book in ipairs(books) do
+				if not active_library then break end
+				local cur_code = get_library_code()
+				if cur_code and not cur_code:find("_") then break end
+
+				for _ = 1, 4 do
+					if not book.Parent then break end
+					tp_and_interact(book, CFrame.new(0, 0, 0))
+					task.wait(0.08)
+				end
+			end
+
+			task.wait(0.1)
+		end
+
+		if active_library and last_lib_code then
+			local pl = pl_remote or remotes:FindFirstChild("PL") or remotes:WaitForChild("PL", 5)
+			if pl then
+				local padlock = r50:FindFirstChild("Padlock", true) or ws:FindFirstChild("Padlock", true)
+				if padlock then
+					for _ = 1, 10 do
+						if not active_library then break end
+						tp_and_interact(padlock, CFrame.new(0, 0, -2))
+						pl:FireServer(last_lib_code)
+						task.wait(0.2)
+					end
+				else
+					pl:FireServer(last_lib_code)
+				end
+			end
+		end
+	end)
+end
+
+ign.auto_library = ign.library
+
+function ign.cleanup()
+	ign.a90(false)
+	ign.screech(false)
+	ign.giggle(false)
+	ign.snare(false)
+	ign.dupe(false)
+	ign.eyes(false)
+	ign.speed(false)
+	ign.rush(false)
+	ign.library(false)
+
+	if lib_thread then
+		task.cancel(lib_thread)
+		lib_thread = nil
+	end
+
+	cleanup_rush_clones()
+end
+
+return ign
