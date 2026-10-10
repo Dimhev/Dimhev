@@ -2,95 +2,82 @@ local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Di
 local ign = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/ignore.lua"))()
 local vis = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/visuals.lua"))()
 
--- Создание главного окна
-local wnd = Library:CreateWindow({
-	Title = "DIMHEV HUB",
-	SubTitle = "Doors Edition"
+local wnd = lib.new({
+	Title = "ui"
 })
 
--- ==================== ВКЛАДКА 1: СУЩНОСТИ ==================== --
-local tab_entities = wnd:CreateTab("Entities")
+local tab_entities = wnd:create_tab("Entities")
 
-tab_entities:CreateSection("Basic Modifiers")
+tab_entities:create_section("Basic modifiers")
 
-tab_entities:CreateToggle("Delete A-90", false, function(val)
+tab_entities:create_toggle("Delete A-90", false, function(val)
 	ign.a90(val)
-end, "Полностью удаляет механику появления A-90")
+end, "Removes A-90 mechanics entirely")
 
-tab_entities:CreateToggle("Delete Screech", false, function(val)
+tab_entities:create_toggle("Delete Screech", false, function(val)
 	ign.screech(val)
-end, "Автоматически нейтрализует Screech в тёмных комнатах")
+end, "Removes Screech mechanics in dark rooms")
 
-tab_entities:CreateToggle("Ignore Giggle", false, function(val)
+tab_entities:create_toggle("Ignore Giggle", false, function(val)
 	ign.giggle(val)
-end, "Игнорирует потолочных Giggle")
+end, "Prevents Giggle from latching onto you")
 
-tab_entities:CreateToggle("Ignore Snare", false, function(val)
+tab_entities:create_toggle("Ignore Snare", false, function(val)
 	ign.snare(val)
-end, "Предотвращает срабатывание напольных ловушек (Snare)")
+end, "Avoids floor snare traps")
 
-tab_entities:CreateToggle("Ignore Dupe", false, function(val)
+tab_entities:create_toggle("Ignore Dupe", false, function(val)
 	ign.dupe(val)
 	vis.dupe(val)
-end, "Игнорирует урон от фальшивых дверей и подсвечивает их")
+end, "Negates fake door damage and highlights them")
 
-tab_entities:CreateToggle("Ignore Eyes & Lookman", false, function(val)
+tab_entities:create_toggle("Ignore Eyes & Lookman", false, function(val)
 	ign.eyes(val)
-end, "Позволяет смотреть на Eyes и Lookman без получения урона")
+end, "Prevents damage when looking at Eyes or Lookman")
 
-tab_entities:CreateSection("Experimental")
+tab_entities:create_section("Experimental")
 
--- Красивое оформление предупреждения вместо сырого текста
-tab_entities:CreateParagraph(
-	"⚠️ Предупреждение о нестабильности",
-	"Эта функция является экспериментальной. Возможны просадки пинга и рассинхронизация сети. Полная неуязвимость не гарантируется."
+tab_entities:create_paragraph(
+	"Warning",
+	"This feature is highly experimental and unstable. May cause network drops and does not guarantee damage immunity."
 )
 
-tab_entities:CreateToggle("Ignore Rush & Ambush", false, function(val)
+tab_entities:create_toggle("Ignore Rush & Ambush", false, function(val)
 	ign.rush(val)
-end, "Попытка блокировки урона от проносящихся сущностей")
+end, "Attempts to avoid damage from rushing entities")
 
+local tab_movement = wnd:create_tab("Movement")
 
--- ==================== ВКЛАДКА 2: ДВИЖЕНИЕ ==================== --
-local tab_movement = wnd:CreateTab("Movement")
+tab_movement:create_section("Speed")
 
-tab_movement:CreateSection("Speed Control")
-
-tab_movement:CreateToggle("Speed Boost", false, function(val)
+tab_movement:create_toggle("Speed Boost", false, function(val)
 	ign.speed(val)
-end, "Включает модификатор скорости передвижения")
+end, "Enables walkspeed modifier")
 
-tab_movement:CreateSlider("Speed Value", 0, 50, 15, function(val)
+tab_movement:create_slider("Speed Value", 0, 50, 15, function(val)
 	ign.set_speed(val)
 end)
 
+local tab_settings = wnd:create_tab("Settings")
 
--- ==================== ВКЛАДКА 3: НАСТРОЙКИ И ИНФО ==================== --
-local tab_settings = wnd:CreateTab("Settings")
+tab_settings:create_section("Info")
 
-tab_settings:CreateSection("Управление интерфейсом")
-
-tab_settings:CreateParagraph(
-	"Горячая клавиша",
-	"Нажмите [RightShift] на клавиатуре, чтобы открыть или скрыть интерфейс в любое время."
+tab_settings:create_paragraph(
+	"Keybind",
+	"Press [RightShift] on your keyboard to toggle the interface."
 )
 
-tab_settings:CreateButton("Выгрузить скрипт (Unload)", function()
-	lib:Notify({ Title = "Unload", Content = "Скрипт выгружается...", Duration = 1.5 })
-	task.wait(0.5)
-	wnd.ScreenGui:Destroy()
+tab_settings:create_button("Unload script", function()
+	wnd.gui:Destroy()
 end)
 
-
--- ==================== ОБРАБОТЧИК ЗАКРЫТИЯ ==================== --
-wnd.ScreenGui.Destroying:Connect(function()
+wnd.gui.Destroying:Connect(function()
 	ign.cleanup()
 	vis.cleanup()
 end)
 
--- Уведомление об успешной загрузке
-lib:Notify({
-	Title = "Dimhev Hub",
-	Content = "Конфигурация успешно применена!",
-	Duration = 3
+lib.notify({
+	Title = "ui",
+	Content = "Loaded successfully",
+	Duration = 2.5
 })
