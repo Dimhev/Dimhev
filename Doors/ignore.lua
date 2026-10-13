@@ -7,9 +7,8 @@ local lp = plrs.LocalPlayer
 local remotes = rep:WaitForChild("RemotesFolder")
 local screech_rem = remotes:WaitForChild("Screech")
 local crouch_rem = remotes:FindFirstChild("Crouch")
-local real_motor = remotes:FindFirstChild("MotorReplication_Real") or remotes:WaitForChild("MotorReplication")
+local motor_rem = remotes:FindFirstChild("MotorReplication")
 local pl_remote = remotes:FindFirstChild("PL")
-local fake_motor = nil
 
 local gd = rep:FindFirstChild("GameData")
 local floor_val = gd and gd:FindFirstChild("Floor")
@@ -63,43 +62,43 @@ local function is_crouching(char)
 end
 
 local function tp_and_interact(target, offset)
-    local char = lp.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root or not target or not target.Parent then return false end
+	local char = lp.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not root or not target or not target.Parent then return false end
 
-    local target_cf = nil
-    if target:IsA("Model") then
-        target_cf = target:GetPivot()
-    elseif target:IsA("BasePart") then
-        target_cf = target.CFrame
-    else
-        local p = target:FindFirstChildWhichIsA("BasePart", true)
-        if p then target_cf = p.CFrame end
-    end
+	local target_cf = nil
+	if target:IsA("Model") then
+		target_cf = target:GetPivot()
+	elseif target:IsA("BasePart") then
+		target_cf = target.CFrame
+	else
+		local p = target:FindFirstChildWhichIsA("BasePart", true)
+		if p then target_cf = p.CFrame end
+	end
 
-    if not target_cf then return false end
+	if not target_cf then return false end
 
-    local safe_offset = offset or CFrame.new(0, 0.5, 1.5)
-    root.CFrame = target_cf * safe_offset
+	local safe_offset = offset or CFrame.new(0, 0.5, 1.5)
+	root.CFrame = target_cf * safe_offset
 
-    task.wait(0.03)
+	task.wait(0.03)
 
-    local found_prompt = false
-    for _, prompt in ipairs(target:GetDescendants()) do
-        if prompt:IsA("ProximityPrompt") then
-            found_prompt = true
-            prompt.RequiresLineOfSight = false
-            prompt.HoldDuration = 0
-            prompt.MaxActivationDistance = 25
-            prompt.Enabled = true
+	local found_prompt = false
+	for _, prompt in ipairs(target:GetDescendants()) do
+		if prompt:IsA("ProximityPrompt") then
+			found_prompt = true
 
-            if fireproximityprompt then
-                fireproximityprompt(prompt)
-            end
-        end
-    end
+			prompt.RequiresLineOfSight = false
+			prompt.HoldDuration = 0
+			prompt.MaxActivationDistance = 25
+			prompt.Enabled = true
 
-    return found_prompt
+			if fireproximityprompt then
+				fireproximityprompt(prompt)
+			end
+		end
+	end
+	return found_prompt
 end
 
 local function has_hint_paper()
@@ -315,52 +314,28 @@ local function get_eyes()
 		or ws:FindFirstChild("BackdoorLookman")
 end
 
-local function is_eyes_visible(inst)
-	if not inst then return false end
-	local part = inst:FindFirstChild("Core") or inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart")
-	if not part then return false end
-	local cam = ws.CurrentCamera
-	if not cam then return false end
-	local pos, on_screen = cam:WorldToViewportPoint(part.Position)
-	return on_screen and pos.Z > 0
-end
-
 function ign.eyes(state)
 	active_eyes = state
 	disconnect_list(conns_eyes)
 
-	if active_eyes then
-		if not fake_motor and real_motor.Name == "MotorReplication" then
-			fake_motor = Instance.new("RemoteEvent")
-			fake_motor.Name = "MotorReplication"
-			real_motor.Name = "MotorReplication_Real"
-			fake_motor.Parent = remotes
-		end
+	if not active_eyes then return end
 
-		local c = run.RenderStepped:Connect(function()
-			if active_eyes then
-				local e = get_eyes()
-				if e and is_eyes_visible(e) then
-					for _ = 1, 2 do
-						if is_old then
-							real_motor:FireServer(0, -90, 0, false)
-						else
-							real_motor:FireServer(-650)
-						end
-					end
-				end
-			end
-		end)
-		table.insert(conns_eyes, c)
-	else
-		if fake_motor then
-			fake_motor:Destroy()
-			fake_motor = nil
-			if real_motor then
-				real_motor.Name = "MotorReplication"
+	local motor = motor_rem or remotes:FindFirstChild("MotorReplication")
+	if not motor then return end
+
+	local c = run.RenderStepped:Connect(function()
+		if not active_eyes then return end
+
+		local entity = get_eyes()
+		if entity then
+			if is_old then
+				motor:FireServer(0, -90, 0, false)
+			else
+				motor:FireServer(-650)
 			end
 		end
-	end
+	end)
+	table.insert(conns_eyes, c)
 end
 
 local function get_base_speed(char)
@@ -653,7 +628,7 @@ function ign.library(state, cb)
 
 		local paper_tries = 0
 		while active_library and not has_hint_paper() and paper_tries < 40 do
-			local paper = r50:FindFirstChild("LibraryHintPaper", true)
+			local paper = r50:FindFirstChild("LibraryHintPaper", true) or r50:FindFirstChild("LibraryHintPaperHard", true)
 			if paper then
 				tp_and_interact(paper, CFrame.new(0, 2, 0))
 			end
@@ -687,10 +662,10 @@ function ign.library(state, cb)
 				local cur_code = get_library_code()
 				if cur_code and not cur_code:find("_") then break end
 
-				for _ = 1, 4 do
-					if not book.Parent then break end
-					tp_and_interact(book, CFrame.new(0, 0, 0))
-					task.wait(0.08)
+				local timeout = os.clock() + 2.5
+				while active_library and book.Parent and os.clock() < timeout do
+					tp_and_interact(book, CFrame.new(0, 0.5, 1.5))
+					task.wait(0.06)
 				end
 			end
 
