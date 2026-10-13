@@ -1,9 +1,9 @@
-local Moonlight = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/library.lua"))()
+local moonlight = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/library.lua"))()
 local ign = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/ignore.lua"))()
 local vis = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/visuals.lua"))()
 local autolib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/autolibrary.lua"))()
 
-local wnd = Moonlight:CreateWindow({
+local wnd = moonlight:CreateWindow({
 	Title = "By dimhev"
 })
 
@@ -40,7 +40,7 @@ local sec_library = tab_entities:CreateSection("Library")
 
 sec_library:CreateToggle("Auto Library", false, function(val)
 	autolib.run(val, function(code)
-		Moonlight:Notify({
+		moonlight:Notify({
 			Title = "Library Solved",
 			Content = "Code: " .. code .. " (Entering into padlock...)",
 			Duration = 10
@@ -80,7 +80,7 @@ wnd.gui.Destroying:Connect(function()
 	autolib.cleanup()
 end)
 
-Moonlight:Notify({
+moonlight:Notify({
 	Title = "By dimhev",
 	Content = "Loaded successfully",
 	Duration = 2.5
