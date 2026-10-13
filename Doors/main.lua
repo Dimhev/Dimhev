@@ -1,6 +1,7 @@
 local Moonlight = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/library.lua"))()
 local ign = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/ignore.lua"))()
 local vis = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/visuals.lua"))()
+local autolib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/autolibrary.lua"))()
 
 local wnd = Moonlight:CreateWindow({
 	Title = "By dimhev"
@@ -38,7 +39,7 @@ end, "Prevents damage when looking at Eyes or Lookman")
 local sec_library = tab_entities:CreateSection("Library")
 
 sec_library:CreateToggle("Auto Library", false, function(val)
-	ign.library(val, function(code)
+	autolib.run(val, function(code)
 		Moonlight:Notify({
 			Title = "Library Solved",
 			Content = "Code: " .. code .. " (Entering into padlock...)",
@@ -76,6 +77,7 @@ end, "Safely restores original mechanics and closes menu")
 wnd.gui.Destroying:Connect(function()
 	ign.cleanup()
 	vis.cleanup()
+	autolib.cleanup()
 end)
 
 Moonlight:Notify({
