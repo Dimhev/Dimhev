@@ -63,32 +63,43 @@ local function is_crouching(char)
 end
 
 local function tp_and_interact(target, offset)
-	local char = lp.Character
-	local root = char and char:FindFirstChild("HumanoidRootPart")
-	if not root or not target then return false end
+    local char = lp.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root or not target or not target.Parent then return false end
 
-	local target_cf = nil
-	if target:IsA("Model") then
-		target_cf = target:GetPivot()
-	elseif target:IsA("BasePart") then
-		target_cf = target.CFrame
-	else
-		local p = target:FindFirstChildWhichIsA("BasePart", true)
-		if p then target_cf = p.CFrame end
-	end
+    local target_cf = nil
+    if target:IsA("Model") then
+        target_cf = target:GetPivot()
+    elseif target:IsA("BasePart") then
+        target_cf = target.CFrame
+    else
+        local p = target:FindFirstChildWhichIsA("BasePart", true)
+        if p then target_cf = p.CFrame end
+    end
 
-	if not target_cf then return false end
+    if not target_cf then return false end
 
-	root.CFrame = target_cf * (offset or CFrame.new(0, 0, 0))
+    local safe_offset = offset or CFrame.new(0, 0.5, 1.5)
+    root.CFrame = target_cf * safe_offset
 
-	for _, prompt in ipairs(target:GetDescendants()) do
-		if prompt:IsA("ProximityPrompt") then
-			if fireproximityprompt then
-				fireproximityprompt(prompt)
-			end
-		end
-	end
-	return true
+    task.wait(0.03)
+
+    local found_prompt = false
+    for _, prompt in ipairs(target:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") then
+            found_prompt = true
+            prompt.RequiresLineOfSight = false
+            prompt.HoldDuration = 0
+            prompt.MaxActivationDistance = 25
+            prompt.Enabled = true
+
+            if fireproximityprompt then
+                fireproximityprompt(prompt)
+            end
+        end
+    end
+
+    return found_prompt
 end
 
 local function has_hint_paper()
