@@ -192,8 +192,9 @@ function Moonlight:CreateWindow(cfg)
 	end)
 
 	local main = create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
 		Size = UDim2.new(0, 750, 0, 500),
-		Position = UDim2.new(0.5, -375, 0.5, -250),
+		Position = UDim2.new(0.5, 0, 0.5, 0),
 		BackgroundColor3 = theme.background,
 		BorderSizePixel = 0,
 		Parent = gui
@@ -203,6 +204,11 @@ function Moonlight:CreateWindow(cfg)
 		Color = theme.card_stroke,
 		Thickness = 1,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = main
+	})
+
+	local main_scale = create("UIScale", {
+		Scale = 1,
 		Parent = main
 	})
 
@@ -374,18 +380,62 @@ function Moonlight:CreateWindow(cfg)
 		Parent = footer
 	})
 
+	local is_open = true
+	local is_animating = false
+
+	local function toggle_ui()
+		if is_animating then return end
+		is_animating = true
+
+		if is_open then
+			hide_tooltip()
+			dragging = false
+			local tw = tween_service:Create(main_scale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0.82 })
+			tw:Play()
+			tw.Completed:Connect(function()
+				main.Visible = false
+				is_open = false
+				is_animating = false
+			end)
+		else
+			main.Visible = true
+			main_scale.Scale = 0.82
+			local tw = tween_service:Create(main_scale, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+			tw:Play()
+			tw.Completed:Connect(function()
+				is_open = true
+				is_animating = false
+			end)
+		end
+	end
+
+	local key_conn = user_input.InputBegan:Connect(function(input, gpe)
+		if not gpe and input.KeyCode == Enum.KeyCode.RightShift then
+			toggle_ui()
+		end
+	end)
+
 	local window = {
 		gui = gui,
 		main = main,
 		tabs = {},
 		active_tab = nil,
-		shimmer_conn = shimmer_conn
+		shimmer_conn = shimmer_conn,
+		key_conn = key_conn
 	}
+
+	function window:Toggle()
+		toggle_ui()
+	end
 
 	function window:Destroy()
 		if self.shimmer_conn then
 			self.shimmer_conn:Disconnect()
 			self.shimmer_conn = nil
+		end
+		if self.key_conn then
+			self.key_conn:Disconnect()
+			self.key_conn = nil
 		end
 		if self.gui then
 			self.gui:Destroy()
@@ -730,7 +780,7 @@ function Moonlight:CreateWindow(cfg)
 					Size = UDim2.new(1, 0, 0, 6),
 					BackgroundColor3 = theme.toggle_off,
 					BorderSizePixel = 0,
-					Parent = box
+					Parent = bar
 				})
 				create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = bar })
 				create("UIStroke", {
