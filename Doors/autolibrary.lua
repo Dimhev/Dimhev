@@ -27,22 +27,50 @@ local function get_alive_root()
 	return char:FindFirstChild("HumanoidRootPart")
 end
 
-local function get_figure_pos(r50)
+local function get_object_pos(obj)
+	if not obj then return nil end
+	if obj:IsA("Model") then
+		return obj:GetPivot().Position
+	elseif obj:IsA("BasePart") then
+		return obj.Position
+	end
+	local p = obj:FindFirstChildWhichIsA("BasePart", true)
+	return p and p.Position or nil
+end
+
+local function get_figure_data(r50)
 	local fsetup = r50:FindFirstChild("FigureSetup")
-	if not fsetup then return nil end
-	local rig = fsetup:FindFirstChild("FigureRig") or fsetup:FindFirstChild("FigureRagdoll")
-	if not rig then return nil end
-	local root = rig:FindFirstChild("RootPart")
+	local rig = (fsetup and (fsetup:FindFirstChild("FigureRig") or fsetup:FindFirstChild("FigureRagdoll")))
+		or ws:FindFirstChild("FigureRig", true)
+	if not rig then return nil, nil end
+
+	local part = rig:FindFirstChild("RootPart")
 		or rig:FindFirstChild("HumanoidRootPart")
 		or rig:FindFirstChild("Torso")
 		or rig.PrimaryPart
-	return root and root.Position
+		or rig:FindFirstChildWhichIsA("BasePart", true)
+
+	if not part then return nil, nil end
+	return part.Position, part.AssemblyLinearVelocity
+end
+
+local function get_safe_ceiling_pos(r50, base_pos)
+	local char = lp.Character
+	local ray_params = RaycastParams.new()
+	ray_params.FilterType = RaycastFilterType.Exclude
+	ray_params.FilterDescendantsInstances = { char }
+
+	local origin = Vector3.new(base_pos.X, base_pos.Y + 2, base_pos.Z)
+	local hit = ws:Raycast(origin, Vector3.new(0, 35, 0), ray_params)
+	local ceiling_y = hit and (hit.Position.Y - 2.5) or (base_pos.Y + 16)
+
+	return Vector3.new(base_pos.X, ceiling_y, base_pos.Z)
 end
 
 local function get_open_stand_pos(r50, target_pos, target_obj)
 	local char = lp.Character
 	local ray_params = RaycastParams.new()
-	ray_params.FilterType = Enum.RaycastFilterType.Exclude
+	ray_params.FilterType = RaycastFilterType.Exclude
 	ray_params.FilterDescendantsInstances = { char, target_obj }
 
 	local dirs = {
@@ -135,24 +163,52 @@ local function get_library_code()
 	return table.concat(code)
 end
 
+local function hover_in_air(r50, duration)
+	local start_time = os.clock()
+	local root = get_alive_root()
+	if not root then return end
+
+	local air_pos = get_safe_ceiling_pos(r50, root.Position)
+	local conn = nil
+
+	local function cleanup()
+		if conn then
+			conn:Disconnect()
+			conn = nil
+		end
+		local r = get_alive_root()
+		if r then
+			r.AssemblyLinearVelocity = Vector3.zero
+			r.AssemblyAngularVelocity = Vector3.zero
+		end
+	end
+
+	conn = run.RenderStepped:Connect(function()
+		if not active_library then return end
+		local cur_root = get_alive_root()
+		if not cur_root then return end
+		cur_root.CFrame = CFrame.new(air_pos)
+		cur_root.AssemblyLinearVelocity = Vector3.zero
+		cur_root.AssemblyAngularVelocity = Vector3.zero
+	end)
+
+	while active_library and (os.clock() - start_time < (duration or 1)) do
+		if not get_alive_root() then break end
+		task.wait(0.05)
+	end
+
+	cleanup()
+end
+
 local function lock_and_harvest(r50, target, max_time)
 	if not is_valid(target) then return false end
 	local root = get_alive_root()
 	local cam = ws.CurrentCamera
 	if not root or not cam then return false end
 
-	local target_cf = nil
-	if target:IsA("Model") then
-		target_cf = target:GetPivot()
-	elseif target:IsA("BasePart") then
-		target_cf = target.CFrame
-	else
-		local p = target:FindFirstChildWhichIsA("BasePart", true)
-		if p then target_cf = p.CFrame end
-	end
-	if not target_cf then return false end
+	local target_pos = get_object_pos(target)
+	if not target_pos then return false end
 
-	local target_pos = target_cf.Position
 	local stand_pos = get_open_stand_pos(r50, target_pos, target)
 	local start_hints = count_hints()
 	local initial_code = get_library_code() or ""
@@ -181,11 +237,12 @@ local function lock_and_harvest(r50, target, max_time)
 	conn = run.RenderStepped:Connect(function()
 		if not active_library then return end
 		local cur_root = get_alive_root()
-		if not cur_root then return end
+		local cur_cam = ws.CurrentCamera
+		if not cur_root or not cur_cam then return end
 		cur_root.CFrame = CFrame.lookAt(stand_pos, target_pos)
 		cur_root.AssemblyLinearVelocity = Vector3.zero
 		cur_root.AssemblyAngularVelocity = Vector3.zero
-		cam.CFrame = CFrame.lookAt(cam.CFrame.Position, target_pos)
+		cur_cam.CFrame = CFrame.lookAt(cur_cam.CFrame.Position, target_pos)
 	end)
 
 	while active_library and (os.clock() - start_time < (max_time or 5)) do
@@ -198,14 +255,19 @@ local function lock_and_harvest(r50, target, max_time)
 			break
 		end
 
-		local prompt_found = target:FindFirstChildWhichIsA("ProximityPrompt", true)
-		if not prompt_found and (count_hints() > start_hints) then
+		if count_hints() > start_hints then
 			success = true
 			break
 		end
 
 		local cur_code = get_library_code() or ""
 		if cur_code ~= initial_code and cur_code ~= "" then
+			success = true
+			break
+		end
+
+		local prompt_found = target:FindFirstChildWhichIsA("ProximityPrompt", true)
+		if not prompt_found or not prompt_found.Enabled then
 			success = true
 			break
 		end
@@ -236,6 +298,87 @@ local function lock_and_harvest(r50, target, max_time)
 
 	cleanup_conn()
 	return success
+end
+
+local function solve_padlock(r50, padlock, code)
+	if not is_valid(padlock) or not code then return false end
+	local root = get_alive_root()
+	local cam = ws.CurrentCamera
+	if not root or not cam then return false end
+
+	local pad_pos = get_object_pos(padlock)
+	if not pad_pos then return false end
+
+	local stand_pos = get_open_stand_pos(r50, pad_pos, padlock)
+	local pad_start = os.clock()
+	local unlocked = false
+
+	local conn = nil
+	local function cleanup_pad()
+		if conn then
+			conn:Disconnect()
+			conn = nil
+		end
+		local r = get_alive_root()
+		if r then
+			r.AssemblyLinearVelocity = Vector3.zero
+			r.AssemblyAngularVelocity = Vector3.zero
+		end
+	end
+
+	conn = run.RenderStepped:Connect(function()
+		if not active_library then return end
+		local cur_root = get_alive_root()
+		local cur_cam = ws.CurrentCamera
+		if not cur_root or not cur_cam then return end
+		cur_root.CFrame = CFrame.lookAt(stand_pos, pad_pos)
+		cur_root.AssemblyLinearVelocity = Vector3.zero
+		cur_root.AssemblyAngularVelocity = Vector3.zero
+		cur_cam.CFrame = CFrame.lookAt(cur_cam.CFrame.Position, pad_pos)
+	end)
+
+	local pl = pl_remote or remotes:FindFirstChild("PL")
+
+	while active_library and (os.clock() - pad_start < 8) do
+		if not get_alive_root() then break end
+
+		if not is_valid(padlock) then
+			unlocked = true
+			break
+		end
+
+		local prompt = padlock:FindFirstChildWhichIsA("ProximityPrompt", true)
+		if not prompt or not prompt.Enabled then
+			unlocked = true
+			break
+		end
+
+		local door = r50:FindFirstChild("Door")
+		if door and door:GetAttribute("Open") == true then
+			unlocked = true
+			break
+		end
+
+		for _, p in ipairs(padlock:GetDescendants()) do
+			if p:IsA("ProximityPrompt") then
+				p.RequiresLineOfSight = false
+				p.HoldDuration = 0
+				p.MaxActivationDistance = 60
+				p.Enabled = true
+				pcall(function() p:InputHoldBegin() end)
+				if fireproximityprompt then fireproximityprompt(p) end
+			end
+		end
+
+		if pl then
+			pl:FireServer(code)
+		end
+
+		task.wait(0.2)
+	end
+
+	cleanup_pad()
+	return unlocked
 end
 
 function autolib.run(state, cb)
@@ -272,6 +415,7 @@ function autolib.run(state, cb)
 			local paper = r50:FindFirstChild("LibraryHintPaper", true) or r50:FindFirstChild("LibraryHintPaperHard", true)
 			if paper and is_valid(paper) then
 				lock_and_harvest(r50, paper, 3)
+				hover_in_air(r50, 0.8)
 			end
 			paper_tries = paper_tries + 1
 			task.wait(0.1)
@@ -300,23 +444,36 @@ function autolib.run(state, cb)
 				end
 			end
 
-			local fig_pos = get_figure_pos(r50)
+			local fig_pos, fig_vel = get_figure_data(r50)
 			local available_books = {}
 
 			for _, desc in ipairs(r50:GetDescendants()) do
 				if desc.Name == "LiveHintBook" and is_valid(desc) then
 					if not blacklisted_books[desc] then
-						local pos = desc:IsA("Model") and desc:GetPivot().Position or desc.Position
-						local dist_to_fig = fig_pos and (pos - fig_pos).Magnitude or 100
-						if dist_to_fig >= 32 then
-							local dist_to_me = (root.Position - pos).Magnitude
-							table.insert(available_books, { obj = desc, dist = dist_to_me })
+						local pos = get_object_pos(desc)
+						if pos then
+							local safe_threshold = 36
+							if fig_pos and fig_vel then
+								local to_book = (pos - fig_pos)
+								if to_book:Dot(fig_vel) > 0 then
+									safe_threshold = 48
+								end
+							end
+
+							local dist_to_fig = fig_pos and (pos - fig_pos).Magnitude or 0
+							local is_safe = (not fig_pos) or (dist_to_fig >= safe_threshold)
+
+							if is_safe then
+								local dist_to_me = (root.Position - pos).Magnitude
+								table.insert(available_books, { obj = desc, dist = dist_to_me })
+							end
 						end
 					end
 				end
 			end
 
 			if #available_books == 0 then
+				hover_in_air(r50, 0.6)
 				local wait_time = 1
 				for _, exp in pairs(blacklisted_books) do
 					local rem = exp - now
@@ -324,7 +481,7 @@ function autolib.run(state, cb)
 						wait_time = rem
 					end
 				end
-				task.wait(math.clamp(wait_time, 0.4, 2))
+				task.wait(math.clamp(wait_time, 0.3, 1.5))
 				continue
 			end
 
@@ -339,42 +496,21 @@ function autolib.run(state, cb)
 				blacklisted_books[target_book] = os.clock() + 15
 			end
 
-			task.wait(0.1)
+			hover_in_air(r50, 0.5)
+			task.wait(0.05)
 		end
 
 		if active_library and last_lib_code then
-			local pl = pl_remote or remotes:FindFirstChild("PL") or remotes:WaitForChild("PL", 5)
-			if pl then
-				local padlock = r50:FindFirstChild("Padlock", true) or ws:FindFirstChild("Padlock", true)
-				if padlock and is_valid(padlock) then
-					local pad_start = os.clock()
-					while active_library and is_valid(padlock) and (os.clock() - pad_start < 8) do
-						local cur_root = get_alive_root()
-						if not cur_root then break end
-
-						local pad_pos = padlock:IsA("Model") and padlock:GetPivot().Position or padlock.Position
-						local stand_pos = get_open_stand_pos(r50, pad_pos, padlock)
-
-						cur_root.CFrame = CFrame.lookAt(stand_pos, pad_pos)
-						cur_root.AssemblyLinearVelocity = Vector3.zero
-						ws.CurrentCamera.CFrame = CFrame.lookAt(ws.CurrentCamera.CFrame.Position, pad_pos)
-
-						for _, prompt in ipairs(padlock:GetDescendants()) do
-							if prompt:IsA("ProximityPrompt") then
-								prompt.RequiresLineOfSight = false
-								prompt.HoldDuration = 0
-								prompt.MaxActivationDistance = 60
-								prompt.Enabled = true
-								pcall(function() prompt:InputHoldBegin() end)
-								if fireproximityprompt then fireproximityprompt(prompt) end
-							end
-						end
-
-						pl:FireServer(last_lib_code)
-						task.wait(0.2)
-					end
+			local padlock = r50:FindFirstChild("Padlock", true) or ws:FindFirstChild("Padlock", true)
+			if padlock and is_valid(padlock) then
+				solve_padlock(r50, padlock, last_lib_code)
+			else
+				local pl = pl_remote or remotes:FindFirstChild("PL")
+				if pl then
+					pl:FireServer(last_lib_code)
 				end
 			end
+			hover_in_air(r50, 0.5)
 		end
 	end)
 end
