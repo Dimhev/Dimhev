@@ -61,10 +61,14 @@ local function is_crouching(char)
 	return (col and col.CollisionGroup == "PlayerCrouching") or false
 end
 
-local function tp_and_interact(target, offset)
+local function is_valid(obj)
+	return obj and obj.Parent and obj:IsDescendantOf(ws)
+end
+
+local function tp_and_interact(target)
 	local char = lp.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
-	if not root or not target or not target.Parent then return false end
+	if not root or not is_valid(target) then return false end
 
 	local target_cf = nil
 	if target:IsA("Model") then
@@ -78,19 +82,21 @@ local function tp_and_interact(target, offset)
 
 	if not target_cf then return false end
 
-	local safe_offset = offset or CFrame.new(0, 0.5, 1.5)
-	root.CFrame = target_cf * safe_offset
-
-	task.wait(0.03)
+	root.CFrame = CFrame.new(target_cf.Position)
+	root.AssemblyLinearVelocity = Vector3.zero
 
 	local found_prompt = false
 	for _, prompt in ipairs(target:GetDescendants()) do
 		if prompt:IsA("ProximityPrompt") then
 			found_prompt = true
 
+			if prompt:HasTag("DisableWhenEnabledOnClient") then
+				prompt:RemoveTag("DisableWhenEnabledOnClient")
+			end
+
 			prompt.RequiresLineOfSight = false
 			prompt.HoldDuration = 0
-			prompt.MaxActivationDistance = 25
+			prompt.MaxActivationDistance = 50
 			prompt.Enabled = true
 
 			if fireproximityprompt then
@@ -100,7 +106,6 @@ local function tp_and_interact(target, offset)
 	end
 	return found_prompt
 end
-
 local function has_hint_paper()
 	local char = lp.Character
 	local bp = lp:FindFirstChild("Backpack")
@@ -627,13 +632,13 @@ function ign.library(state, cb)
 		if not r50 then return end
 
 		local paper_tries = 0
-		while active_library and not has_hint_paper() and paper_tries < 40 do
+		while active_library and not has_hint_paper() and paper_tries < 50 do
 			local paper = r50:FindFirstChild("LibraryHintPaper", true) or r50:FindFirstChild("LibraryHintPaperHard", true)
-			if paper then
-				tp_and_interact(paper, CFrame.new(0, 2, 0))
+			if paper and is_valid(paper) then
+				tp_and_interact(paper)
 			end
 			paper_tries = paper_tries + 1
-			task.wait(0.15)
+			task.wait(0.1)
 		end
 
 		while active_library do
@@ -648,7 +653,7 @@ function ign.library(state, cb)
 
 			local books = {}
 			for _, desc in ipairs(r50:GetDescendants()) do
-				if desc.Name == "LiveHintBook" and desc.Parent then
+				if desc.Name == "LiveHintBook" and is_valid(desc) then
 					table.insert(books, desc)
 				end
 			end
@@ -659,13 +664,17 @@ function ign.library(state, cb)
 
 			for _, book in ipairs(books) do
 				if not active_library then break end
+				
 				local cur_code = get_library_code()
 				if cur_code and not cur_code:find("_") then break end
 
-				local timeout = os.clock() + 2.5
-				while active_library and book.Parent and os.clock() < timeout do
-					tp_and_interact(book, CFrame.new(0, 0.5, 1.5))
-					task.wait(0.06)
+				if is_valid(book) then
+					local start_time = os.clock()
+					while active_library and is_valid(book) and (os.clock() - start_time < 6) do
+						tp_and_interact(book)
+						task.wait(0.08)
+					end
+					task.wait(0.05)
 				end
 			end
 
@@ -676,10 +685,10 @@ function ign.library(state, cb)
 			local pl = pl_remote or remotes:FindFirstChild("PL") or remotes:WaitForChild("PL", 5)
 			if pl then
 				local padlock = r50:FindFirstChild("Padlock", true) or ws:FindFirstChild("Padlock", true)
-				if padlock then
+				if padlock and is_valid(padlock) then
 					for _ = 1, 10 do
 						if not active_library then break end
-						tp_and_interact(padlock, CFrame.new(0, 0, -2))
+						tp_and_interact(padlock)
 						pl:FireServer(last_lib_code)
 						task.wait(0.2)
 					end
