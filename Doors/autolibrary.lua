@@ -19,6 +19,55 @@ local function is_valid(obj)
 	return obj and obj.Parent and obj:IsDescendantOf(ws)
 end
 
+local function get_alive_root()
+	local char = lp.Character
+	if not char then return nil end
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not hum or hum.Health <= 0 then return nil end
+	return char:FindFirstChild("HumanoidRootPart")
+end
+
+local function get_figure_pos(r50)
+	local fsetup = r50:FindFirstChild("FigureSetup")
+	if not fsetup then return nil end
+	local rig = fsetup:FindFirstChild("FigureRig") or fsetup:FindFirstChild("FigureRagdoll")
+	if not rig then return nil end
+	local root = rig:FindFirstChild("RootPart")
+		or rig:FindFirstChild("HumanoidRootPart")
+		or rig:FindFirstChild("Torso")
+		or rig.PrimaryPart
+	return root and root.Position
+end
+
+local function get_open_stand_pos(r50, target_pos, target_obj)
+	local char = lp.Character
+	local ray_params = RaycastParams.new()
+	ray_params.FilterType = RaycastFilterType.Exclude
+	ray_params.FilterDescendantsInstances = { char, target_obj }
+
+	local dirs = {
+		Vector3.new(0, 0, 1),
+		Vector3.new(0, 0, -1),
+		Vector3.new(1, 0, 0),
+		Vector3.new(-1, 0, 0),
+	}
+
+	local origin = target_pos + Vector3.new(0, 0.4, 0)
+	local best_dir = dirs[1]
+	local max_dist = -1
+
+	for _, dir in ipairs(dirs) do
+		local res = ws:Raycast(origin, dir * 10, ray_params)
+		local dist = res and (res.Position - origin).Magnitude or 10
+		if dist > max_dist then
+			max_dist = dist
+			best_dir = dir
+		end
+	end
+
+	return target_pos + (best_dir * 2.2) + Vector3.new(0, 0.2, 0)
+end
+
 local function count_hints()
 	local pgui = lp:FindFirstChild("PlayerGui")
 	local perm_ui = pgui and pgui:FindFirstChild("PermUI")
@@ -86,11 +135,11 @@ local function get_library_code()
 	return table.concat(code)
 end
 
-local function lock_and_harvest(target, max_time)
-	local char = lp.Character
-	local root = char and char:FindFirstChild("HumanoidRootPart")
+local function lock_and_harvest(r50, target, max_time)
+	if not is_valid(target) then return false end
+	local root = get_alive_root()
 	local cam = ws.CurrentCamera
-	if not root or not cam or not is_valid(target) then return false end
+	if not root or not cam then return false end
 
 	local target_cf = nil
 	if target:IsA("Model") then
@@ -104,8 +153,9 @@ local function lock_and_harvest(target, max_time)
 	if not target_cf then return false end
 
 	local target_pos = target_cf.Position
-	local hover_pos = target_pos + Vector3.new(0, 0.4, 0)
+	local stand_pos = get_open_stand_pos(r50, target_pos, target)
 	local start_hints = count_hints()
+	local initial_code = get_library_code() or ""
 	local start_time = os.clock()
 	local success = false
 
@@ -115,27 +165,47 @@ local function lock_and_harvest(target, max_time)
 		prompt_svc:SetAttribute("Suppressed", false)
 	end
 
-	local conn = run.RenderStepped:Connect(function()
-		if not active_library or not char or not root then return end
-		root.CFrame = CFrame.lookAt(hover_pos, target_pos)
-		root.AssemblyLinearVelocity = Vector3.zero
-		root.AssemblyAngularVelocity = Vector3.zero
+	local conn = nil
+	local function cleanup_conn()
+		if conn then
+			conn:Disconnect()
+			conn = nil
+		end
+		local r = get_alive_root()
+		if r then
+			r.AssemblyLinearVelocity = Vector3.zero
+			r.AssemblyAngularVelocity = Vector3.zero
+		end
+	end
+
+	conn = run.RenderStepped:Connect(function()
+		if not active_library then return end
+		local cur_root = get_alive_root()
+		if not cur_root then return end
+		cur_root.CFrame = CFrame.lookAt(stand_pos, target_pos)
+		cur_root.AssemblyLinearVelocity = Vector3.zero
+		cur_root.AssemblyAngularVelocity = Vector3.zero
 		cam.CFrame = CFrame.lookAt(cam.CFrame.Position, target_pos)
 	end)
 
 	while active_library and (os.clock() - start_time < (max_time or 5)) do
+		if not get_alive_root() then
+			break
+		end
+
 		if not is_valid(target) then
 			success = true
 			break
 		end
 
-		if count_hints() > start_hints then
+		local prompt_found = target:FindFirstChildWhichIsA("ProximityPrompt", true)
+		if not prompt_found and (count_hints() > start_hints) then
 			success = true
 			break
 		end
 
-		local cur_code = get_library_code()
-		if cur_code and not cur_code:find("_") then
+		local cur_code = get_library_code() or ""
+		if cur_code ~= initial_code and cur_code ~= "" then
 			success = true
 			break
 		end
@@ -164,7 +234,7 @@ local function lock_and_harvest(target, max_time)
 		task.wait(0.06)
 	end
 
-	conn:Disconnect()
+	cleanup_conn()
 	return success
 end
 
@@ -201,7 +271,7 @@ function autolib.run(state, cb)
 		while active_library and not has_hint_paper() and paper_tries < 40 do
 			local paper = r50:FindFirstChild("LibraryHintPaper", true) or r50:FindFirstChild("LibraryHintPaperHard", true)
 			if paper and is_valid(paper) then
-				lock_and_harvest(paper, 3)
+				lock_and_harvest(r50, paper, 3)
 			end
 			paper_tries = paper_tries + 1
 			task.wait(0.1)
@@ -217,30 +287,44 @@ function autolib.run(state, cb)
 				break
 			end
 
-			local char = lp.Character
-			local root = char and char:FindFirstChild("HumanoidRootPart")
+			local root = get_alive_root()
 			if not root then
 				task.wait(0.2)
 				continue
 			end
 
-			local available_books = {}
 			local now = os.clock()
+			for obj, exp in pairs(blacklisted_books) do
+				if now >= exp or not is_valid(obj) then
+					blacklisted_books[obj] = nil
+				end
+			end
+
+			local fig_pos = get_figure_pos(r50)
+			local available_books = {}
 
 			for _, desc in ipairs(r50:GetDescendants()) do
 				if desc.Name == "LiveHintBook" and is_valid(desc) then
-					local blocked_until = blacklisted_books[desc] or 0
-					if now >= blocked_until then
+					if not blacklisted_books[desc] then
 						local pos = desc:IsA("Model") and desc:GetPivot().Position or desc.Position
-						local dist = (root.Position - pos).Magnitude
-						table.insert(available_books, { obj = desc, dist = dist })
+						local dist_to_fig = fig_pos and (pos - fig_pos).Magnitude or 100
+						if dist_to_fig >= 32 then
+							local dist_to_me = (root.Position - pos).Magnitude
+							table.insert(available_books, { obj = desc, dist = dist_to_me })
+						end
 					end
 				end
 			end
 
 			if #available_books == 0 then
-				table.clear(blacklisted_books)
-				task.wait(0.3)
+				local wait_time = 1
+				for _, exp in pairs(blacklisted_books) do
+					local rem = exp - now
+					if rem > 0 and rem < wait_time then
+						wait_time = rem
+					end
+				end
+				task.wait(math.clamp(wait_time, 0.4, 2))
 				continue
 			end
 
@@ -249,7 +333,7 @@ function autolib.run(state, cb)
 			end)
 
 			local target_book = available_books[1].obj
-			local harvested = lock_and_harvest(target_book, 5)
+			local harvested = lock_and_harvest(r50, target_book, 5)
 
 			if not harvested then
 				blacklisted_books[target_book] = os.clock() + 15
@@ -263,12 +347,32 @@ function autolib.run(state, cb)
 			if pl then
 				local padlock = r50:FindFirstChild("Padlock", true) or ws:FindFirstChild("Padlock", true)
 				if padlock and is_valid(padlock) then
-					lock_and_harvest(padlock, 2)
-				end
-				for _ = 1, 5 do
-					if not active_library then break end
-					pl:FireServer(last_lib_code)
-					task.wait(0.15)
+					local pad_start = os.clock()
+					while active_library and is_valid(padlock) and (os.clock() - pad_start < 8) do
+						local cur_root = get_alive_root()
+						if not cur_root then break end
+
+						local pad_pos = padlock:IsA("Model") and padlock:GetPivot().Position or padlock.Position
+						local stand_pos = get_open_stand_pos(r50, pad_pos, padlock)
+
+						cur_root.CFrame = CFrame.lookAt(stand_pos, pad_pos)
+						cur_root.AssemblyLinearVelocity = Vector3.zero
+						ws.CurrentCamera.CFrame = CFrame.lookAt(ws.CurrentCamera.CFrame.Position, pad_pos)
+
+						for _, prompt in ipairs(padlock:GetDescendants()) do
+							if prompt:IsA("ProximityPrompt") then
+								prompt.RequiresLineOfSight = false
+								prompt.HoldDuration = 0
+								prompt.MaxActivationDistance = 60
+								prompt.Enabled = true
+								pcall(function() prompt:InputHoldBegin() end)
+								if fireproximityprompt then fireproximityprompt(prompt) end
+							end
+						end
+
+						pl:FireServer(last_lib_code)
+						task.wait(0.2)
+					end
 				end
 			end
 		end
