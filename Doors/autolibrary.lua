@@ -20,7 +20,8 @@ end
 local function tp_and_interact(target)
 	local char = lp.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
-	if not root or not is_valid(target) then return false end
+	local cam = ws.CurrentCamera
+	if not root or not cam or not is_valid(target) then return false end
 
 	local target_cf = nil
 	if target:IsA("Model") then
@@ -34,8 +35,18 @@ local function tp_and_interact(target)
 
 	if not target_cf then return false end
 
-	root.CFrame = CFrame.new(target_cf.Position)
+	local target_pos = target_cf.Position
+	local stand_pos = target_pos + (target_cf.LookVector * 1.8) + Vector3.new(0, 0.5, 0)
+
+	root.CFrame = CFrame.lookAt(stand_pos, target_pos)
 	root.AssemblyLinearVelocity = Vector3.zero
+	cam.CFrame = CFrame.lookAt(cam.CFrame.Position, target_pos)
+
+	local ps = lp:FindFirstChild("PlayerScripts")
+	local prompt_svc = ps and ps:FindFirstChild("PromptService")
+	if prompt_svc and prompt_svc:GetAttribute("Suppressed") then
+		prompt_svc:SetAttribute("Suppressed", false)
+	end
 
 	local found_prompt = false
 	for _, prompt in ipairs(target:GetDescendants()) do
@@ -48,8 +59,12 @@ local function tp_and_interact(target)
 
 			prompt.RequiresLineOfSight = false
 			prompt.HoldDuration = 0
-			prompt.MaxActivationDistance = 50
+			prompt.MaxActivationDistance = 60
 			prompt.Enabled = true
+
+			pcall(function()
+				prompt:InputHoldBegin()
+			end)
 
 			if fireproximityprompt then
 				fireproximityprompt(prompt)
