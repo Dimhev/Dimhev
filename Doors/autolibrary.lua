@@ -42,7 +42,7 @@ end
 local function get_open_stand_pos(r50, target_pos, target_obj)
 	local char = lp.Character
 	local ray_params = RaycastParams.new()
-	ray_params.FilterType = RaycastFilterType.Exclude
+	ray_params.FilterType = Enum.RaycastFilterType.Exclude
 	ray_params.FilterDescendantsInstances = { char, target_obj }
 
 	local dirs = {
