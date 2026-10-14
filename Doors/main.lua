@@ -8,38 +8,52 @@ local wnd = moonlight:CreateWindow({
 	Title = "By dimhev"
 })
 
-local tab_entities = wnd:CreateTab("Entities")
+-- Main
 
-local sec_basic = tab_entities:CreateSection("Basic Modifiers")
+local tab_main = wnd:CreateTab("Main")
 
-sec_basic:CreateToggle("Delete A-90", false, function(val)
-	ign.a90(val)
-end, "Removes A-90 mechanics entirely")
+local sec_movement = tab_main:CreateSection("Movement")
 
-sec_basic:CreateToggle("Delete Screech", false, function(val)
+sec_movement:CreateToggle("Speed Boost", false, function(val)
+	ign.speed(val)
+end, "Enables walkspeed modifier")
+
+sec_movement:CreateSlider("Speed Value", 0, 50, 15, function(val)
+	ign.set_speed(val)
+end, "Adjusts additional walkspeed amount")
+
+local sec_main_entities = tab_main:CreateSection("General Entities")
+
+sec_main_entities:CreateToggle("Ignore Screech", false, function(val)
 	ign.screech(val)
 end, "Removes Screech mechanics in dark rooms")
 
-sec_basic:CreateToggle("Ignore Giggle", false, function(val)
-	ign.giggle(val)
-end, "Prevents Giggle from latching onto you")
-
-sec_basic:CreateToggle("Ignore Snare", false, function(val)
-	ign.snare(val)
-end, "Avoids floor snare traps")
-
-sec_basic:CreateToggle("Ignore Dupe", false, function(val)
+sec_main_entities:CreateToggle("Ignore Dupe", false, function(val)
 	ign.dupe(val)
 	vis.dupe(val)
 end, "Negates fake door damage and highlights them")
 
-sec_basic:CreateToggle("Ignore Eyes & Lookman", false, function(val)
+sec_main_entities:CreateToggle("Ignore Rush-like Entities", false, function(val)
+	ign.rush(val)
+end, "Attempts to avoid damage from rushing entities (Rush, Ambush, etc.)")
+
+sec_main_entities:CreateToggle("Ignore Eyes & Lookman", false, function(val)
 	ign.eyes(val)
 end, "Prevents damage when looking at Eyes or Lookman")
 
-local sec_library = tab_entities:CreateSection("Library")
+-- Hotel
 
-sec_library:CreateToggle("Auto Library", false, function(val)
+local tab_doors = wnd:CreateTab("Doors")
+
+local sec_doors_entities = tab_doors:CreateSection("Entities & Traps")
+
+sec_doors_entities:CreateToggle("Ignore Snare", false, function(val)
+	ign.snare(val)
+end, "Avoids floor snare traps")
+
+local sec_doors_auto = tab_doors:CreateSection("Automation")
+
+sec_doors_auto:CreateToggle("Auto Library", false, function(val)
 	autolib.run(val, function(code)
 		moonlight:Notify({
 			Title = "Library Solved",
@@ -49,9 +63,7 @@ sec_library:CreateToggle("Auto Library", false, function(val)
 	end)
 end, "Auto collects paper & books, decodes and unlocks Room 50")
 
-local sec_gate = tab_entities:CreateSection("Gate & Lever")
-
-sec_gate:CreateToggle("Auto Lever", false, function(val)
+sec_doors_auto:CreateToggle("Auto Lever", false, function(val)
 	autolever.run(val, function(room_name)
 		moonlight:Notify({
 			Title = "Gate Lever",
@@ -61,23 +73,27 @@ sec_gate:CreateToggle("Auto Lever", false, function(val)
 	end)
 end, "Auto pulls gate levers and teleports to gate")
 
-local sec_exp = tab_entities:CreateSection("Experimental")
+-- Mines
 
-sec_exp:CreateToggle("Ignore Rush & Ambush", false, function(val)
-	ign.rush(val)
-end, "Attempts to avoid damage from rushing entities")
+local tab_mines = wnd:CreateTab("Mines")
 
-local tab_movement = wnd:CreateTab("Movement")
+local sec_mines_entities = tab_mines:CreateSection("Entities")
 
-local sec_speed = tab_movement:CreateSection("Speed")
+sec_mines_entities:CreateToggle("Ignore Giggle", false, function(val)
+	ign.giggle(val)
+end, "Prevents Giggle from latching onto you")
 
-sec_speed:CreateToggle("Speed Boost", false, function(val)
-	ign.speed(val)
-end, "Enables walkspeed modifier")
+-- Archives
 
-sec_speed:CreateSlider("Speed Value", 0, 50, 15, function(val)
-	ign.set_speed(val)
-end, "Adjusts additional walkspeed amount")
+local tab_archives = wnd:CreateTab("Archives")
+
+local sec_archives_entities = tab_archives:CreateSection("Entities")
+
+sec_archives_entities:CreateToggle("Delete A-90", false, function(val)
+	ign.a90(val)
+end, "Removes A-90 mechanics entirely")
+
+-- Settings
 
 local tab_settings = wnd:CreateTab("Settings")
 
