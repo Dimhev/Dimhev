@@ -2,6 +2,8 @@ local Archives = {}
 
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local lp = Players.LocalPlayer
 local GameData = ReplicatedStorage:WaitForChild("GameData", 5)
 
 local droneConnection = nil
@@ -206,11 +208,49 @@ function Archives.anti_stampede(enabled)
     end)
 end
 
+local a90Connection = nil
+local active_a90 = false
+
+local function get_a90_frame()
+    local pgui = lp:FindFirstChild("PlayerGui")
+    local mui = pgui and pgui:FindFirstChild("MainUI")
+    local jmp = mui and mui:FindFirstChild("Jumpscare")
+    return jmp and jmp:FindFirstChild("Jumpscare_A90")
+end
+
+function Archives.a90(enabled)
+    active_a90 = enabled
+    if a90Connection then
+        a90Connection:Disconnect()
+        a90Connection = nil
+    end
+
+    if active_a90 then
+        lp:SetAttribute("Invincibility", true)
+        local frame = get_a90_frame()
+        if frame then
+            frame.Visible = false
+            a90Connection = frame:GetPropertyChangedSignal("Visible"):Connect(function()
+                if active_a90 and frame.Visible then
+                    frame.Visible = false
+                end
+            end)
+        end
+    else
+        lp:SetAttribute("Invincibility", nil)
+        local frame = get_a90_frame()
+        if frame then
+            frame.Visible = false
+        end
+    end
+end
+
 function Archives.cleanup()
     Archives.drones(false)
     Archives.alma(false)
     Archives.water(false)
     Archives.anti_stampede(false)
+    Archives.a90(false)
 end
 
 return Archives
