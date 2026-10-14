@@ -10,10 +10,20 @@ local droneConnection = nil
 local droneWalkedIntoParents = {}
 
 local function processDrones(drones)
-    local walkedInto = drones:FindFirstChild("WalkedInto") or drones:WaitForChild("WalkedInto", 3)
-    if walkedInto and not droneWalkedIntoParents[walkedInto] then
-        droneWalkedIntoParents[walkedInto] = drones
-        walkedInto.Parent = ReplicatedStorage
+    local walkedInto = drones:FindFirstChild("WalkedInto")
+    if walkedInto then
+        if not droneWalkedIntoParents[walkedInto] then
+            droneWalkedIntoParents[walkedInto] = drones
+            walkedInto.Parent = ReplicatedStorage
+        end
+    else
+        task.spawn(function()
+            local found = drones:WaitForChild("WalkedInto", 2)
+            if found and droneConnection and not droneWalkedIntoParents[found] then
+                droneWalkedIntoParents[found] = drones
+                found.Parent = ReplicatedStorage
+            end
+        end)
     end
 end
 
@@ -60,7 +70,11 @@ function Archives.alma(enabled)
         end
         almaConnection = Workspace.ChildAdded:Connect(function(child)
             if child.Name == "Alma" then
-                child:Destroy()
+                task.defer(function()
+                    if child.Parent then
+                        child:Destroy()
+                    end
+                end)
             end
         end)
     end
@@ -68,8 +82,11 @@ end
 
 local waterBypassConnection = nil
 local waterParts = {}
+local waterActive = false
 
 function Archives.water(enabled)
+    waterActive = enabled
+
     if waterBypassConnection then
         waterBypassConnection:Disconnect()
         waterBypassConnection = nil
@@ -91,7 +108,7 @@ function Archives.water(enabled)
     local function processWaterRoom(room)
         if not tonumber(room.Name) then return end
         task.wait(2.5)
-        if not room.Parent then return end
+        if not waterActive or not room.Parent then return end
 
         local water = room:FindFirstChild("Water")
         if not water or waterParts[water] then return end
@@ -145,49 +162,46 @@ function Archives.water(enabled)
 end
 
 local stampedeConnection = nil
-local timeShowerSourceLabel = nil
+local cachedClockRemote = nil
 
-local function getClockLabel(room)
-    local assets = room and room:FindFirstChild("Assets", true)
+local function getClockRemote(room)
+    if not room then return nil end
+    local assets = room:FindFirstChild("Assets") or room:FindFirstChild("Assets", true)
     local clock = assets and assets:FindFirstChild("ArchivesClock", true)
-    local timeObj = clock and clock:FindFirstChild("Time", true)
-    local label = timeObj and timeObj:FindFirstChild("TextLabel")
-    return (label and label:IsA("TextLabel")) and label or nil
-end
-
-local function resolveClockLabel()
-    if timeShowerSourceLabel and timeShowerSourceLabel.Parent and timeShowerSourceLabel:IsDescendantOf(game) then
-        return timeShowerSourceLabel
+    if not clock then
+        clock = room:FindFirstChild("ArchivesClock", true)
     end
-    local currentRooms = Workspace:FindFirstChild("CurrentRooms")
-    if not currentRooms then return nil end
-
-    local rooms = {}
-    for _, room in ipairs(currentRooms:GetChildren()) do
-        local num = tonumber(room.Name)
-        if num then
-            rooms[#rooms + 1] = { room = room, num = num }
-        end
-    end
-    table.sort(rooms, function(a, b) return a.num > b.num end)
-
-    for i = 1, math.min(6, #rooms) do
-        local label = getClockLabel(rooms[i].room)
-        if label then
-            timeShowerSourceLabel = label
-            return label
+    if clock then
+        local remote = clock:FindFirstChild("LookedAtRemote", true)
+        if remote and remote:IsA("RemoteEvent") then
+            return remote
         end
     end
     return nil
 end
 
 local function resolveClockRemote()
-    local label = resolveClockLabel()
-    if not label then return nil end
-    local clock = label:FindFirstAncestor("ArchivesClock")
-    if not clock then return nil end
-    local remote = clock:FindFirstChild("LookedAtRemote", true)
-    return (remote and remote:IsA("RemoteEvent")) and remote or nil
+    if cachedClockRemote and cachedClockRemote.Parent and cachedClockRemote:IsDescendantOf(game) then
+        return cachedClockRemote
+    end
+    cachedClockRemote = nil
+
+    local currentRooms = Workspace:FindFirstChild("CurrentRooms")
+    if not currentRooms then return nil end
+
+    local latestRoom = GameData and GameData:FindFirstChild("LatestRoom")
+    local latestRoomNum = (latestRoom and tonumber(latestRoom.Value)) or 0
+
+    for roomNum = latestRoomNum, math.max(0, latestRoomNum - 5), -1 do
+        local room = currentRooms:FindFirstChild(tostring(roomNum))
+        local remote = getClockRemote(room)
+        if remote then
+            cachedClockRemote = remote
+            return remote
+        end
+    end
+
+    return nil
 end
 
 function Archives.anti_stampede(enabled)
@@ -195,11 +209,12 @@ function Archives.anti_stampede(enabled)
         task.cancel(stampedeConnection)
         stampedeConnection = nil
     end
+    cachedClockRemote = nil
 
     if not enabled then return end
 
     stampedeConnection = task.spawn(function()
-        while task.wait(0.4) do
+        while task.wait(0.5) do
             local remote = resolveClockRemote()
             if remote then
                 remote:FireServer()
