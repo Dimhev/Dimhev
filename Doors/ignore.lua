@@ -14,7 +14,6 @@ local floor_val = gd and gd:FindFirstChild("Floor")
 local is_old = floor_val and (floor_val.Value == "Fools" or floor_val.Value == "OldHotel")
 
 local ign = {}
-local conns_a90 = {}
 local conns_screech = {}
 local conns_giggle = {}
 local conns_snare = {}
@@ -23,7 +22,6 @@ local conns_eyes = {}
 local conns_speed = {}
 local conns_rush = {}
 
-local active_a90 = false
 local active_screech = false
 local active_giggle = false
 local active_snare = false
@@ -53,38 +51,6 @@ local function is_crouching(char)
 	if not char then return false end
 	local col = char:FindFirstChild("CollisionPart") or char:FindFirstChild("Collision")
 	return (col and col.CollisionGroup == "PlayerCrouching") or false
-end
-
-local function get_a90_frame()
-	local pgui = lp:FindFirstChild("PlayerGui")
-	local mui = pgui and pgui:FindFirstChild("MainUI")
-	local jmp = mui and mui:FindFirstChild("Jumpscare")
-	return jmp and jmp:FindFirstChild("Jumpscare_A90")
-end
-
-function ign.a90(state)
-	active_a90 = state
-	disconnect_list(conns_a90)
-	
-	if active_a90 then
-		lp:SetAttribute("Invincibility", true)
-		local frame = get_a90_frame()
-		if frame then
-			frame.Visible = false
-			local c = frame:GetPropertyChangedSignal("Visible"):Connect(function()
-				if active_a90 and frame.Visible then
-					frame.Visible = false
-				end
-			end)
-			table.insert(conns_a90, c)
-		end
-	else
-		lp:SetAttribute("Invincibility", nil)
-		local frame = get_a90_frame()
-		if frame then
-			frame.Visible = false
-		end
-	end
 end
 
 local function get_screech_module()
@@ -500,7 +466,6 @@ function ign.rush(state)
 end
 
 function ign.cleanup()
-	ign.a90(false)
 	ign.screech(false)
 	ign.giggle(false)
 	ign.snare(false)
