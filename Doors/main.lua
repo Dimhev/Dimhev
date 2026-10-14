@@ -1,7 +1,8 @@
 local moonlight = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/library.lua"))()
 local ign = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/ignore.lua"))()
 local vis = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/visuals.lua"))()
-local autolib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/autolibrary.lua"))()
+local autolib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/auto/autolibrary.lua"))()
+local autolever = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/auto/autolever.lua"))()
 
 local wnd = moonlight:CreateWindow({
 	Title = "By dimhev"
@@ -48,6 +49,18 @@ sec_library:CreateToggle("Auto Library", false, function(val)
 	end)
 end, "Auto collects paper & books, decodes and unlocks Room 50")
 
+local sec_gate = tab_entities:CreateSection("Gate & Lever")
+
+sec_gate:CreateToggle("Auto Lever", false, function(val)
+	autolever.run(val, function(room_name)
+		moonlight:Notify({
+			Title = "Gate Lever",
+			Content = "Pulled Lever! Room " .. room_name,
+			Duration = 4
+		})
+	end)
+end, "Auto pulls gate levers and teleports to gate")
+
 local sec_exp = tab_entities:CreateSection("Experimental")
 
 sec_exp:CreateToggle("Ignore Rush & Ambush", false, function(val)
@@ -78,6 +91,7 @@ wnd.gui.Destroying:Connect(function()
 	ign.cleanup()
 	vis.cleanup()
 	autolib.cleanup()
+	autolever.cleanup()
 end)
 
 moonlight:Notify({
