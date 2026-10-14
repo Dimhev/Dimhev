@@ -3,6 +3,7 @@ local ign = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Di
 local vis = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/visuals.lua"))()
 local autolib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/auto/autolibrary.lua"))()
 local autolever = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/auto/autolever.lua"))()
+local archives = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/refs/heads/main/Doors/floors/archives.lua"))()
 
 local wnd = moonlight:CreateWindow({
 	Title = "By dimhev"
@@ -87,11 +88,27 @@ end, "Prevents Giggle from latching onto you")
 
 local tab_archives = wnd:CreateTab("Archives")
 
-local sec_archives_entities = tab_archives:CreateSection("Entities")
+local sec_archives_entities = tab_archives:CreateSection("Entities & Traps")
 
 sec_archives_entities:CreateToggle("Delete A-90", false, function(val)
-	ign.a90(val)
+	archives.a90(val)
 end, "Removes A-90 mechanics entirely")
+
+sec_archives_entities:CreateToggle("Bypass Drones", false, function(val)
+	archives.drones(val)
+end, "Prevents drones from push")
+
+sec_archives_entities:CreateToggle("Bypass Alma", false, function(val)
+	archives.alma(val)
+end, "Removes Alma")
+
+sec_archives_entities:CreateToggle("Bypass Electric Water", false, function(val)
+	archives.water(val)
+end, "Places safe collisions over electric water")
+
+sec_archives_entities:CreateToggle("Anti Stampede / Stop Time", false, function(val)
+	archives.anti_stampede(val)
+end, "Automatically interacts with clocks to counter Stampede")
 
 -- Settings
 
@@ -108,6 +125,7 @@ wnd.gui.Destroying:Connect(function()
 	vis.cleanup()
 	autolib.cleanup()
 	autolever.cleanup()
+	archives.cleanup()
 end)
 
 moonlight:Notify({
