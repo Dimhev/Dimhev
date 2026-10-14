@@ -32,6 +32,33 @@ local function get_object_pos(obj)
 	return p and p.Position or nil
 end
 
+local function can_reach_room(room, target_part)
+	local root = get_alive_root()
+	if not root or not target_part then return false end
+
+	local char = lp.Character
+	local origin = root.Position
+	local target_pos = target_part.Position
+	local dir = target_pos - origin
+
+	if dir.Magnitude > 150 then
+		return false
+	end
+
+	local ray_params = RaycastParams.new()
+	ray_params.FilterType = Enum.RaycastFilterType.Exclude
+	ray_params.FilterDescendantsInstances = { char }
+
+	local res = ws:Raycast(origin, dir, ray_params)
+	if res and res.Instance then
+		if res.Instance:IsDescendantOf(room) then
+			return true
+		end
+	end
+
+	return false
+end
+
 local function get_open_stand_pos(target_pos, target_obj)
 	local char = lp.Character
 	local ray_params = RaycastParams.new()
@@ -163,9 +190,7 @@ end
 
 function autolever.run(state, cb)
 	active_lever = state
-	if cb then
-		lever_notify_cb = cb
-	end
+	if cb then lever_notify_cb = cb end
 	table.clear(completed_rooms)
 
 	if lever_thread then
@@ -195,21 +220,23 @@ function autolever.run(state, cb)
 					local gate = assets and assets:FindFirstChild("Gate")
 
 					if lever and gate and is_valid(lever) and is_valid(gate) then
-						local handle = lever:FindFirstChild("Handle", true)
+						local handle = lever:FindFirstChild("Handle", true) or lever:FindFirstChildWhichIsA("BasePart", true)
 						local prompt = lever:FindFirstChildWhichIsA("ProximityPrompt", true)
 
-						if prompt and prompt.Enabled then
-							local pulled = pull_lever(lever, handle)
-							if pulled then
-								completed_rooms[room] = true
-								task.wait(0.1)
-								tp_to_gate(gate)
+						if prompt and prompt.Enabled and handle then
+							if can_reach_room(room, handle) then
+								local pulled = pull_lever(lever, handle)
+								if pulled then
+									completed_rooms[room] = true
+									task.wait(0.1)
+									tp_to_gate(gate)
 
-								if lever_notify_cb then
-									lever_notify_cb(room.Name)
+									if lever_notify_cb then
+										lever_notify_cb(room.Name)
+									end
+
+									task.wait(0.8)
 								end
-
-								task.wait(0.8)
 							end
 						end
 					end
