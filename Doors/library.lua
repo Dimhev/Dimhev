@@ -732,121 +732,129 @@ function Moonlight:CreateWindow(cfg)
 				return btn_frame
 			end
 
-			function section:CreateSlider(name, min_val, max_val, default_val, callback, desc)
-				min_val = min_val or 0
-				max_val = max_val or 100
-				local cur_val = math.clamp(default_val or min_val, min_val, max_val)
+function section:CreateSlider(name, min_val, max_val, default_val, callback, desc)
+	min_val = min_val or 0
+	max_val = max_val or 100
+	local cur_val = math.clamp(default_val or min_val, min_val, max_val)
 
-				local box = create("Frame", {
-					Size = UDim2.new(1, 0, 0, 42),
-					BackgroundColor3 = theme.row_hover,
-					BackgroundTransparency = 1,
-					BorderSizePixel = 0,
-					Parent = self.list
-				})
-				create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = box })
-				create("UIPadding", {
-					PaddingTop = UDim.new(0, 4),
-					PaddingLeft = UDim.new(0, 6),
-					PaddingRight = UDim.new(0, 6),
-					Parent = box
-				})
+	local box = create("Frame", {
+		Size = UDim2.new(1, 0, 0, 44),
+		BackgroundColor3 = theme.row_hover,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Parent = self.list
+	})
+	create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = box })
+	create("UIPadding", {
+		PaddingTop = UDim.new(0, 4),
+		PaddingLeft = UDim.new(0, 6),
+		PaddingRight = UDim.new(0, 6),
+		Parent = box
+	})
 
-				local label = create("TextLabel", {
-					Size = UDim2.new(1, -60, 0, 16),
-					BackgroundTransparency = 1,
-					Font = Enum.Font.RobotoMono,
-					Text = name,
-					TextColor3 = theme.text_secondary,
-					TextSize = 13,
-					TextXAlignment = Enum.TextXAlignment.Left,
-					Parent = box
-				})
+	local label = create("TextLabel", {
+		Size = UDim2.new(1, -60, 0, 16),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.RobotoMono,
+		Text = name,
+		TextColor3 = theme.text_secondary,
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = box
+	})
 
-				local val_label = create("TextLabel", {
-					Position = UDim2.new(1, -60, 0, 0),
-					Size = UDim2.new(0, 60, 0, 16),
-					BackgroundTransparency = 1,
-					Font = Enum.Font.RobotoMono,
-					Text = tostring(cur_val),
-					TextColor3 = theme.accent_purple,
-					TextSize = 13,
-					TextXAlignment = Enum.TextXAlignment.Right,
-					Parent = box
-				})
+	local val_label = create("TextLabel", {
+		Position = UDim2.new(1, -60, 0, 0),
+		Size = UDim2.new(0, 60, 0, 16),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.RobotoMono,
+		Text = tostring(cur_val),
+		TextColor3 = theme.accent_purple,
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = box
+	})
 
-				local bar = create("Frame", {
-					Position = UDim2.new(0, 0, 0, 24),
-					Size = UDim2.new(1, 0, 0, 6),
-					BackgroundColor3 = theme.toggle_off,
-					BorderSizePixel = 0,
-					Parent = bar
-				})
-				create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = bar })
-				create("UIStroke", {
-					Color = theme.toggle_off_stroke,
-					Thickness = 1,
-					ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-					Parent = bar
-				})
+	local bar = create("Frame", {
+		Position = UDim2.new(0, 0, 0, 26),
+		Size = UDim2.new(1, 0, 0, 6),
+		BackgroundColor3 = theme.toggle_off,
+		BorderSizePixel = 0,
+		Parent = box
+	})
+	create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = bar })
+	create("UIStroke", {
+		Color = theme.toggle_off_stroke,
+		Thickness = 1,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = bar
+	})
 
-				local init_pct = (cur_val - min_val) / (max_val - min_val)
-				local fill = create("Frame", {
-					Size = UDim2.new(init_pct, 0, 1, 0),
-					BackgroundColor3 = theme.accent_glow,
-					BorderSizePixel = 0,
-					Parent = bar
-				})
-				create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
+	local init_pct = (cur_val - min_val) / math.max(1, (max_val - min_val))
+	local fill = create("Frame", {
+		Size = UDim2.new(init_pct, 0, 1, 0),
+		BackgroundColor3 = theme.accent_glow,
+		BorderSizePixel = 0,
+		Parent = bar
+	})
+	create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
 
-				local sliding = false
+	local hit_trigger = create("TextButton", {
+		Position = UDim2.new(0, 0, 0, 20),
+		Size = UDim2.new(1, 0, 0, 18),
+		BackgroundTransparency = 1,
+		Text = "",
+		Parent = box
+	})
 
-				local function update(input)
-					local abs_pos = bar.AbsolutePosition.X
-					local abs_size = bar.AbsoluteSize.X
-					local mouse_pos = input.Position.X
-					local pct = math.clamp((mouse_pos - abs_pos) / abs_size, 0, 1)
+	local sliding = false
 
-					cur_val = math.floor(min_val + ((max_val - min_val) * pct))
-					val_label.Text = tostring(cur_val)
-					fill.Size = UDim2.new(pct, 0, 1, 0)
+	local function update(input)
+		local abs_pos = bar.AbsolutePosition.X
+		local abs_size = bar.AbsoluteSize.X
+		local mouse_pos = input.Position.X
+		local pct = math.clamp((mouse_pos - abs_pos) / abs_size, 0, 1)
 
-					if callback then
-						callback(cur_val)
-					end
-				end
+		cur_val = math.floor(min_val + ((max_val - min_val) * pct))
+		val_label.Text = tostring(cur_val)
+		fill.Size = UDim2.new(pct, 0, 1, 0)
 
-				bar.InputBegan:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						sliding = true
-						update(input)
-					end
-				end)
+		if callback then
+			callback(cur_val)
+		end
+	end
 
-				user_input.InputEnded:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						sliding = false
-					end
-				end)
+	hit_trigger.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			sliding = true
+			update(input)
+		end
+	end)
 
-				user_input.InputChanged:Connect(function(input)
-					if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-						update(input)
-					end
-				end)
+	user_input.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			sliding = false
+		end
+	end)
 
-				box.MouseEnter:Connect(function()
-					tween_service:Create(box, TweenInfo.new(0.15), { BackgroundTransparency = 0.9 }):Play()
-					if desc then show_tooltip(desc) end
-				end)
+	user_input.InputChanged:Connect(function(input)
+		if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			update(input)
+		end
+	end)
 
-				box.MouseLeave:Connect(function()
-					tween_service:Create(box, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
-					hide_tooltip()
-				end)
+	box.MouseEnter:Connect(function()
+		tween_service:Create(box, TweenInfo.new(0.15), { BackgroundTransparency = 0.9 }):Play()
+		if desc then show_tooltip(desc) end
+	end)
 
-				return box
-			end
+	box.MouseLeave:Connect(function()
+		tween_service:Create(box, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
+		hide_tooltip()
+	end)
+
+	return box
+end
 
 			return section
 		end
