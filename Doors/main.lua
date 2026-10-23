@@ -4,6 +4,7 @@ local vis = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Di
 local autolib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/auto/autolibrary.lua"))()
 local autolever = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/auto/autolever.lua"))()
 local archives = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/refs/heads/main/Doors/floors/archives.lua"))()
+local stairwell = loadstring(game:HttpGet("https://raw.githubusercontent.com/Dimhev/Dimhev/refs/heads/main/Doors/floors/stairwell.lua"))()
 
 local wnd = moonlight:CreateWindow({
 	Title = "By dimhev"
@@ -110,6 +111,86 @@ sec_archives_entities:CreateToggle("Anti Stampede / Stop Time", false, function(
 	archives.anti_stampede(val)
 end, "Automatically interacts with clocks to counter Stampede")
 
+-- Stairwell
+
+local tab_stairwell = wnd:CreateTab("Stairwell")
+
+local sec_stairwell_misc = tab_stairwell:CreateSection("Exploits / Anti / Misc")
+
+sec_stairwell_misc:CreateToggle("Noise TV Breaker", false, function(val)
+	stairwell.bypass_noise(val)
+end, "Breaks the TV of Noise while holding or spawning it")
+
+sec_stairwell_misc:CreateToggle("Item Number", false, function(val)
+	stairwell.dropped_item_value(val)
+end, "Shows the number of dropped items on screen")
+
+sec_stairwell_misc:CreateToggle("Kill All (Requires >=1 Cart)", false, function(val)
+	stairwell.kill_all_with_cart(val)
+end, "Teleports shopping carts to other alive players")
+
+sec_stairwell_misc:CreateToggle("Bug Out Creak (Requires >=5 Cart)", false, function(val)
+	stairwell.fling_creak(val)
+end, "Teleports shopping carts to Creak (do not touch the carts yourself)")
+
+sec_stairwell_misc:CreateToggle("Creak Aggression Meter", false, function(val)
+	stairwell.creak_aggression_meter(val)
+end, "Shows Creak's aggression percentage above its head")
+
+sec_stairwell_misc:CreateToggle("Disable Crushers", false, function(val)
+	stairwell.disable_crushers(val)
+end, "Disables crusher collisions and destroys crusher triggers")
+
+sec_stairwell_misc:CreateToggle("Delete Crushers", false, function(val)
+	stairwell.delete_crushers(val)
+end, "Deletes stairwell crushers except BasicWall")
+
+sec_stairwell_misc:CreateToggle("Remove Meld", false, function(val)
+	stairwell.remove_meld(val)
+end, "Removes Meld walls and Meld folders")
+
+sec_stairwell_misc:CreateToggle("TP to Trash & Drop Trash", false, function(val)
+	stairwell.landing_spam(val)
+end, "Teleports to landing trash prompts and drops trash repeatedly")
+
+sec_stairwell_misc:CreateButton("TP Shopping Carts To You", function()
+	stairwell.tp_shopping_carts_to_player(game.Players.LocalPlayer.Name)
+end, "Teleports all shopping carts in Misc to your character")
+
+local sec_stairwell_exp = tab_stairwell:CreateSection("Experimental & Drops")
+
+sec_stairwell_exp:CreateButton("TP All Drops to Nearest Grinder", function()
+	stairwell.tp_drops_to_nearest_grinder()
+end, "Teleports every dropped item to the grinder closest to you")
+
+sec_stairwell_exp:CreateButton("Bring Dropped Items", function()
+	stairwell.bring_dropped_items()
+end, "Brings all dropped items to your character")
+
+sec_stairwell_exp:CreateToggle("Enable Bring Interval", false, function(val)
+	stairwell.enable_dropped_items_interval(val)
+end, "Automatically brings dropped items at the selected interval")
+
+sec_stairwell_exp:CreateSlider("Bring Interval (s)", 0, 60, 1, function(val)
+	stairwell.set_dropped_items_interval(val)
+end, "How often dropped items are brought")
+
+sec_stairwell_exp:CreateToggle("Orbit Dropped Items", false, function(val)
+	stairwell.orbit_dropped_items(val)
+end, "Orbits dropped items around you and prevents despawn every 10s")
+
+sec_stairwell_exp:CreateSlider("Orbit Height", -20, 20, 2, function(val)
+	stairwell.set_orbit_height(val)
+end, "The height of the item orbit")
+
+sec_stairwell_exp:CreateSlider("Orbit Distance", 0, 50, 5, function(val)
+	stairwell.set_orbit_distance(val)
+end, "The radius distance of the item orbit")
+
+sec_stairwell_exp:CreateSlider("Orbit Speed", 0, 20, 2, function(val)
+	stairwell.set_orbit_speed(val)
+end, "The rotation speed of the item orbit")
+
 -- Settings
 
 local tab_settings = wnd:CreateTab("Settings")
@@ -126,6 +207,7 @@ wnd.gui.Destroying:Connect(function()
 	autolib.cleanup()
 	autolever.cleanup()
 	archives.cleanup()
+	stairwell.cleanup()
 end)
 
 moonlight:Notify({
