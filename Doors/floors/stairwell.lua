@@ -5,7 +5,6 @@ local run_service = game:GetService("RunService")
 local core_gui = game:GetService("CoreGui")
 local local_player = players.LocalPlayer
 
--- состояния и переменные модуля
 local state = {
 	bypass_noise = false,
 	dropped_item_value = false,
@@ -38,7 +37,6 @@ local connections = {
 
 local creak_meters_table = {}
 
--- 1. сломать телевизор noise (noise tv breaker)
 function stairwell.bypass_noise(val)
 	state.bypass_noise = val
 
@@ -77,7 +75,6 @@ function stairwell.bypass_noise(val)
 	end
 end
 
--- 2. счётчик выброшенных предметов (item number)
 function stairwell.dropped_item_value(val)
 	state.dropped_item_value = val
 
@@ -145,7 +142,6 @@ function stairwell.dropped_item_value(val)
 	end)
 end
 
--- 3. убить всех тележками (kill all with cart)
 function stairwell.kill_all_with_cart(val)
 	state.kill_all_with_cart = val
 	if not val then return end
@@ -194,7 +190,6 @@ function stairwell.kill_all_with_cart(val)
 	end)
 end
 
--- 4. забагать сущность creak тележками (fling creak)
 function stairwell.fling_creak(val)
 	state.fling_creak = val
 	if not val then return end
@@ -218,7 +213,6 @@ function stairwell.fling_creak(val)
 	end)
 end
 
--- 5. индикатор агрессии creak (creak aggression meter)
 local function cleanup_creak_meter(creak_model)
 	local meter_data = creak_meters_table[creak_model]
 	if not meter_data then return end
@@ -379,7 +373,6 @@ function stairwell.creak_aggression_meter(val)
 	end
 end
 
--- 6. отключить коллизию прессов (disable crushers)
 function stairwell.disable_crushers(val)
 	state.disable_crushers = val
 	if not val then return end
@@ -427,7 +420,6 @@ function stairwell.disable_crushers(val)
 	end)
 end
 
--- 7. удалить прессы кроме стен (delete crushers)
 function stairwell.delete_crushers(val)
 	state.delete_crushers = val
 	if not val then return end
@@ -471,7 +463,6 @@ function stairwell.delete_crushers(val)
 	end)
 end
 
--- 8. удалить meld (remove meld)
 function stairwell.remove_meld(val)
 	state.remove_meld = val
 	if not val then return end
@@ -504,7 +495,6 @@ function stairwell.remove_meld(val)
 	end)
 end
 
--- 9. телепорт к мусору и сброс (tp to trash and drop trash)
 function stairwell.landing_spam(val)
 	state.landing_spam = val
 	state.landing_token += 1
@@ -590,7 +580,6 @@ function stairwell.landing_spam(val)
 	end)
 end
 
--- 10. управление тележками (tp shopping carts to player)
 function stairwell.set_shopping_cart_target(name)
 	state.shopping_cart_target = name
 end
@@ -611,7 +600,6 @@ function stairwell.tp_shopping_carts_to_player(target_name)
 	end
 end
 
--- 11. телепорт всех предметов к ближайшему измельчителю (tp all drops to nearest grinder)
 function stairwell.tp_drops_to_nearest_grinder()
 	local drops_folder = workspace:FindFirstChild("Drops")
 	local char = local_player and local_player.Character
@@ -650,7 +638,6 @@ function stairwell.tp_drops_to_nearest_grinder()
 	end
 end
 
--- 12. притянуть выброшенные предметы к себе (bring dropped items & interval)
 function stairwell.bring_dropped_items()
 	local drops_folder = workspace:FindFirstChild("Drops")
 	local char = local_player and local_player.Character
@@ -691,7 +678,6 @@ function stairwell.enable_dropped_items_interval(val)
 	end
 end
 
--- 13. вращение предметов вокруг игрока (orbit dropped items)
 function stairwell.set_orbit_height(val)
 	state.orbit_height = val
 end
@@ -769,7 +755,6 @@ function stairwell.orbit_dropped_items(val)
 	end)
 end
 
--- 14. очистка при выгрузке скрипта (cleanup)
 function stairwell.cleanup()
 	stairwell.bypass_noise(false)
 	stairwell.dropped_item_value(false)
