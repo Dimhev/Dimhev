@@ -37,42 +37,18 @@ local connections = {
 
 local creak_meters_table = {}
 
-function stairwell.bypass_noise(val)
-	state.bypass_noise = val
+local function break_tv(target_tv)
+    if not target_tv:IsA("Model") or target_tv.Name ~= "TV_Stand" then return end
+    
+    local primary = target_tv.PrimaryPart or target_tv:FindFirstChildWhichIsA("BasePart")
+    if not primary then return end
 
-	if connections.bypass_noise then
-		connections.bypass_noise:Disconnect()
-		connections.bypass_noise = nil
-	end
-
-	if not val then return end
-
-	local function check_tv_stand(target_tv)
-		if not target_tv:IsA("Model") then return end
-		if target_tv.Name ~= "TV_Stand" then return end
-
-		local current_cf = target_tv:GetPivot()
-		if current_cf.Position.Y > -119 then
-			target_tv:PivotTo(CFrame.new(
-				current_cf.Position.X,
-				-120,
-				current_cf.Position.Z
-			))
-		end
-	end
-
-	local misc_folder = workspace:FindFirstChild("Misc")
-	if not misc_folder then return end
-
-	connections.bypass_noise = misc_folder.ChildAdded:Connect(function(new_child)
-		if state.bypass_noise then
-			check_tv_stand(new_child)
-		end
-	end)
-
-	for _, child in ipairs(misc_folder:GetChildren()) do
-		check_tv_stand(child)
-	end
+    local current_cf = target_tv:GetPivot()
+    target_tv:PivotTo(current_cf * CFrame.Angles(math.rad(90), 0, 0))
+    
+    if primary:IsA("BasePart") then
+        primary.AssemblyAngularVelocity = Vector3.new(0, 0, 50)
+    end
 end
 
 function stairwell.dropped_item_value(val)
