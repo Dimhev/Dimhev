@@ -119,7 +119,7 @@ local sec_stairwell_misc = tab_stairwell:CreateSection("Exploits / Anti / Misc")
 
 sec_stairwell_misc:CreateToggle("Noise TV Breaker", false, function(val)
 	stairwell.break_tv(val)
-end, "Breaks the TV of Noise while holding or spawning it")
+end, "Breaks the TV of Noise while holding it")
 
 sec_stairwell_misc:CreateToggle("Item Number", false, function(val)
 	stairwell.dropped_item_value(val)
