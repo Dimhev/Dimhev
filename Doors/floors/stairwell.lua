@@ -3,10 +3,11 @@ local stairwell = {}
 local players = game:GetService("Players")
 local run_service = game:GetService("RunService")
 local core_gui = game:GetService("CoreGui")
+local debris = game:GetService("Debris")
 local local_player = players.LocalPlayer
 
 local state = {
-	bypass_noise = false,
+	break_tv = false,
 	dropped_item_value = false,
 	kill_all_with_cart = false,
 	fling_creak = false,
@@ -30,25 +31,112 @@ local state = {
 }
 
 local connections = {
-	bypass_noise = nil,
+	break_tv_attr = nil,
+	break_tv_char = nil,
 	creak_child_added = nil,
 	orbit_heartbeat = nil
 }
 
 local creak_meters_table = {}
 
-local function break_tv(target_tv)
-    if not target_tv:IsA("Model") or target_tv.Name ~= "TV_Stand" then return end
-    
-    local primary = target_tv.PrimaryPart or target_tv:FindFirstChildWhichIsA("BasePart")
-    if not primary then return end
+local function get_target_tv(hrp, max_dist)
+	local search_root = workspace:FindFirstChild("CurrentRooms") or workspace
+	for _, desc in ipairs(search_root:GetDescendants()) do
+		if desc.Name == "TV_Stand" and desc:IsA("Model") then
+			local dist = (hrp.Position - desc:GetPivot().Position).Magnitude
+			if dist <= (max_dist or 12) then
+				return desc
+			end
+		end
+	end
+	return nil
+end
 
-    local current_cf = target_tv:GetPivot()
-    target_tv:PivotTo(current_cf * CFrame.Angles(math.rad(90), 0, 0))
-    
-    if primary:IsA("BasePart") then
-        primary.AssemblyAngularVelocity = Vector3.new(0, 0, 50)
-    end
+local function apply_physical_flip(tv_model)
+	if not tv_model then return end
+	local primary = tv_model.PrimaryPart or tv_model:FindFirstChildWhichIsA("BasePart")
+	if not primary then return end
+
+	for _, obj in ipairs(tv_model:GetDescendants()) do
+		if obj:IsA("AlignOrientation") or obj:IsA("BodyGyro") then
+			obj.Enabled = false
+			task.delay(1.5, function()
+				if obj and obj.Parent then
+					obj.Enabled = true
+				end
+			end)
+		end
+	end
+
+	local bav = Instance.new("BodyAngularVelocity")
+	bav.Name = "tv_destabilizer"
+	bav.AngularVelocity = Vector3.new(60, 0, 60)
+	bav.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
+	bav.P = 1e5
+	bav.Parent = primary
+
+	pcall(function()
+		primary:ApplyAngularImpulse(Vector3.new(100000, 0, 100000))
+	end)
+
+	debris:AddItem(bav, 0.4)
+end
+
+function stairwell.break_tv(val)
+	state.break_tv = val
+
+	if connections.break_tv_attr then
+		connections.break_tv_attr:Disconnect()
+		connections.break_tv_attr = nil
+	end
+	if connections.break_tv_char then
+		connections.break_tv_char:Disconnect()
+		connections.break_tv_char = nil
+	end
+
+	if not val then return end
+
+	local debounce = false
+
+	local function check_and_flip(char)
+		if debounce or not state.break_tv then return end
+		local speed = char:GetAttribute("SpeedBoostExtra") or 0
+		local cant_hold = char:GetAttribute("CantHoldItems")
+		local pushing_cart = char:GetAttribute("PushingCart")
+
+		if speed <= -4 and cant_hold and not pushing_cart then
+			debounce = true
+			task.wait(0.05)
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local tv = get_target_tv(hrp, 12)
+				if tv then
+					apply_physical_flip(tv)
+				end
+			end
+			task.wait(1)
+			debounce = false
+		end
+	end
+
+	local function hook_character(char)
+		if connections.break_tv_attr then
+			connections.break_tv_attr:Disconnect()
+			connections.break_tv_attr = nil
+		end
+		if not char then return end
+
+		connections.break_tv_attr = char.AttributeChanged:Connect(function()
+			check_and_flip(char)
+		end)
+		check_and_flip(char)
+	end
+
+	if local_player.Character then
+		hook_character(local_player.Character)
+	end
+
+	connections.break_tv_char = local_player.CharacterAdded:Connect(hook_character)
 end
 
 function stairwell.dropped_item_value(val)
@@ -732,7 +820,7 @@ function stairwell.orbit_dropped_items(val)
 end
 
 function stairwell.cleanup()
-	stairwell.bypass_noise(false)
+	stairwell.break_tv(false)
 	stairwell.dropped_item_value(false)
 	stairwell.kill_all_with_cart(false)
 	stairwell.fling_creak(false)
