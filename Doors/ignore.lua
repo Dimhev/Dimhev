@@ -327,6 +327,11 @@ local function cleanup_rush_clones()
 	end
 end
 
+local function is_in_minecart()
+	local cam = workspace.CurrentCamera
+	return cam and cam:FindFirstChild("MinecartRig") ~= nil
+end
+
 function ign.rush(state)
 	active_rush = state
 	disconnect_list(conns_rush)
@@ -345,16 +350,24 @@ function ign.rush(state)
 			return
 		end
 
-		if root_joint then
+		if root_joint and not original_c1 then
 			original_c1 = root_joint.C1
 		end
 
 		cleanup_rush_clones()
 
+		local smooth_physics = PhysicalProperties.new(0.7, 0, 0, 100, 100)
+
 		col_clone = real_col:Clone()
 		col_clone.Name = "CollisionClone"
 		col_clone.Massless = true
+		col_clone.CustomPhysicalProperties = smooth_physics
 		col_clone.Parent = char
+
+		if col_clone:FindFirstChild("CollisionCrouch") then
+			col_clone.CollisionCrouch.Massless = true
+			col_clone.CollisionCrouch.CustomPhysicalProperties = smooth_physics
+		end
 
 		col_part_clone = real_col_part:Clone()
 		col_part_clone.Name = "CollisionPartClone"
@@ -366,11 +379,28 @@ function ign.rush(state)
 			col_part_clone.CollisionCrouch:Destroy()
 		end
 
-		root.CFrame = root.CFrame * CFrame.new(0, -2.346, 0)
-		hum.HipHeight = 0.05
+		local is_lowered = false
 
-		if crouch_rem then
-			crouch_rem:FireServer(true, true)
+		local function set_lowered_state(should_lower)
+			if should_lower and not is_lowered then
+				is_lowered = true
+				root.CFrame = root.CFrame * CFrame.new(0, -2.346, 0)
+				hum.HipHeight = 0.45
+				if crouch_rem then
+					crouch_rem:FireServer(true, true)
+				end
+			elseif not should_lower and is_lowered then
+				is_lowered = false
+				root.CFrame = root.CFrame * CFrame.new(0, 2.346, 0)
+				hum.HipHeight = 2.396
+				if root_joint and original_c1 then
+					root_joint.C1 = original_c1
+				end
+			end
+		end
+
+		if not is_in_minecart() then
+			set_lowered_state(true)
 		end
 
 		local last_crouch_send = 0
@@ -386,11 +416,22 @@ function ign.rush(state)
 			local col_p = c:FindFirstChild("CollisionPart")
 			local lt = c:FindFirstChild("LowerTorso")
 			local rj = lt and lt:FindFirstChild("Root")
-			if not r or not col or not col_clone then return end
+			if not r or not h or not col or not col_clone then return end
+
+			if is_in_minecart() or c:GetAttribute("Climbing") == true then
+				set_lowered_state(false)
+				col_clone.CanCollide = false
+				if col_clone:FindFirstChild("CollisionCrouch") then
+					col_clone.CollisionCrouch.CanCollide = false
+				end
+				return
+			else
+				set_lowered_state(true)
+			end
 
 			r.CanCollide = false
 			for _, part in ipairs(c:GetChildren()) do
-				if part:IsA("BasePart") and part ~= col_clone and part ~= col_clone:FindFirstChild("CollisionCrouch") then
+				if part:IsA("BasePart") and part ~= col_clone then
 					part.CanCollide = false
 				end
 			end
@@ -401,8 +442,8 @@ function ign.rush(state)
 			end
 
 			local is_crouch = is_crouching(c)
-
 			local clone_crouch = col_clone:FindFirstChild("CollisionCrouch")
+
 			if clone_crouch then
 				col_clone.CanCollide = not is_crouch
 				clone_crouch.CanCollide = is_crouch
@@ -411,26 +452,26 @@ function ign.rush(state)
 			end
 
 			if rj and original_c1 then
-				rj.C1 = original_c1 * CFrame.new(0, -2.346, 0)
+				rj.C1 = original_c1 * CFrame.new(0, -2.15, 0)
 			end
 
-			local spoof_y = 2.328
+			local spoof_y = 2.15
 			col.Position = r.Position + Vector3.new(0, spoof_y, 0)
 			if col_p then
 				col_p.Position = r.Position + Vector3.new(0, spoof_y, 0)
 			end
 
 			if col:FindFirstChild("CollisionCrouch") and clone_crouch then
-				col.CollisionCrouch.Position = r.Position + Vector3.new(0, 1.328, 0)
+				col.CollisionCrouch.Position = r.Position + Vector3.new(0, 1.15, 0)
 				clone_crouch.CollisionGroup = col.CollisionCrouch.CollisionGroup
 			end
 
 			if clone_crouch then
-				clone_crouch.Position = r.Position + Vector3.new(0, 0.75, 0)
+				clone_crouch.Position = r.Position + Vector3.new(0, 1.25, 0)
 			end
 
 			col_clone.CollisionGroup = col.CollisionGroup
-			col_clone.Position = r.Position + Vector3.new(0, 1.75, 0)
+			col_clone.Position = r.Position + Vector3.new(0, 2.25, 0)
 
 			if crouch_rem and (tick() - last_crouch_send > 0.1) then
 				last_crouch_send = tick()
