@@ -14,8 +14,6 @@ local active_dupe = false
 local door_cfg = {
 	esp = false,
 	tracers = false,
-	highlight = true,
-	distance = true,
 	color = Color3.fromRGB(0, 200, 255)
 }
 
@@ -202,28 +200,22 @@ local function refresh_entry_visibility(entry, cur_room)
 		entry.billboard.Enabled = true
 		entry.label.TextColor3 = door_cfg.color
 
-		if door_cfg.highlight then
-			if not entry.hl and active_highlights < max_highlights then
-				local hl = Instance.new("Highlight")
-				hl.Name = "door_hl"
-				hl.Adornee = entry.model
-				hl.FillColor = door_cfg.color
-				hl.OutlineColor = door_cfg.color
-				hl.FillTransparency = 0.78
-				hl.OutlineTransparency = 0.15
-				hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-				hl.Parent = gui_holder
-				entry.hl = hl
-				active_highlights = active_highlights + 1
-			elseif entry.hl then
-				entry.hl.FillColor = door_cfg.color
-				entry.hl.OutlineColor = door_cfg.color
-				entry.hl.Enabled = true
-			end
+		if not entry.hl and active_highlights < max_highlights then
+			local hl = Instance.new("Highlight")
+			hl.Name = "door_hl"
+			hl.Adornee = entry.model
+			hl.FillColor = door_cfg.color
+			hl.OutlineColor = door_cfg.color
+			hl.FillTransparency = 0.78
+			hl.OutlineTransparency = 0.15
+			hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+			hl.Parent = gui_holder
+			entry.hl = hl
+			active_highlights = active_highlights + 1
 		elseif entry.hl then
-			entry.hl:Destroy()
-			entry.hl = nil
-			active_highlights = math.max(0, active_highlights - 1)
+			entry.hl.FillColor = door_cfg.color
+			entry.hl.OutlineColor = door_cfg.color
+			entry.hl.Enabled = true
 		end
 
 		if door_cfg.tracers and not entry.tracer then
@@ -314,7 +306,7 @@ local function step_render()
 		elseif entry.visible then
 			local pos = entry.target.Position
 			if entry.label then
-				if door_cfg.distance and root then
+				if root then
 					local dist = math.floor((root.Position - pos).Magnitude)
 					entry.label.Text = entry.base_text .. " [" .. tostring(dist) .. "m]"
 				else
@@ -405,17 +397,6 @@ function vis.door_tracers(state)
 	if door_cfg.esp then
 		refresh_all_doors()
 	end
-end
-
-function vis.door_highlight(state)
-	door_cfg.highlight = state
-	if door_cfg.esp then
-		refresh_all_doors()
-	end
-end
-
-function vis.door_distance(state)
-	door_cfg.distance = state
 end
 
 local function apply_dupe_visual(door)
