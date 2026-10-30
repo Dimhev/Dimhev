@@ -53,7 +53,7 @@ sec_vis_doors:CreateToggle("Enable Tracers", false, function(val)
 	vis.door_tracers(val)
 end, "Draws thin tracer lines")
 
-local tab_doors = wnd:CreateTab("Doors")
+local tab_doors = wnd:CreateTab("Hotel")
 
 local sec_doors_entities = tab_doors:CreateSection("Entities & Traps")
 
