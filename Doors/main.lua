@@ -10,8 +10,6 @@ local wnd = moonlight:CreateWindow({
 	Title = "By dimhev"
 })
 
--- Main
-
 local tab_main = wnd:CreateTab("Main")
 
 local sec_movement = tab_main:CreateSection("Movement")
@@ -43,7 +41,17 @@ sec_main_entities:CreateToggle("Ignore Eyes & Lookman", false, function(val)
 	ign.eyes(val)
 end, "Prevents damage when looking at Eyes or Lookman")
 
--- Hotel
+local tab_visuals = wnd:CreateTab("Visuals")
+
+local sec_vis_doors = tab_visuals:CreateSection("ESP")
+
+sec_vis_doors:CreateToggle("Enable Door ESP", false, function(val)
+	vis.door_esp(val)
+end, "Highlights active doors with door number and distance")
+
+sec_vis_doors:CreateToggle("Enable Tracers", false, function(val)
+	vis.door_tracers(val)
+end, "Draws thin tracer lines")
 
 local tab_doors = wnd:CreateTab("Doors")
 
@@ -75,8 +83,6 @@ sec_doors_auto:CreateToggle("Auto Lever", false, function(val)
 	end)
 end, "Auto pulls gate levers and teleports to gate")
 
--- Mines
-
 local tab_mines = wnd:CreateTab("Mines")
 
 local sec_mines_entities = tab_mines:CreateSection("Entities")
@@ -84,8 +90,6 @@ local sec_mines_entities = tab_mines:CreateSection("Entities")
 sec_mines_entities:CreateToggle("Ignore Giggle", false, function(val)
 	ign.giggle(val)
 end, "Prevents Giggle from latching onto you")
-
--- Archives
 
 local tab_archives = wnd:CreateTab("Archives")
 
@@ -110,8 +114,6 @@ end, "Places safe collisions over electric water")
 sec_archives_entities:CreateToggle("Anti Stampede / Stop Time", false, function(val)
 	archives.anti_stampede(val)
 end, "Automatically interacts with clocks to counter Stampede")
-
--- Stairwell
 
 local tab_stairwell = wnd:CreateTab("Stairwell")
 
@@ -190,8 +192,6 @@ end, "The radius distance of the item orbit")
 sec_stairwell_exp:CreateSlider("Orbit Speed", 0, 20, 2, function(val)
 	stairwell.set_orbit_speed(val)
 end, "The rotation speed of the item orbit")
-
--- Settings
 
 local tab_settings = wnd:CreateTab("Settings")
 
