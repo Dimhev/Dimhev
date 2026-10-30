@@ -9,18 +9,72 @@ local lp = plrs.LocalPlayer
 local vis = {}
 local conns_dupe = {}
 local conns_door = {}
+local conns_entity = {}
 local active_dupe = false
 
-local door_cfg = {
-	esp = false,
+local cfg = {
+	door_esp = false,
+	entity_esp = false,
+	entity_notify = false,
 	tracers = false,
-	color = Color3.fromRGB(0, 200, 255)
+	door_color = Color3.fromRGB(0, 200, 255),
+	entity_color = Color3.fromRGB(255, 65, 65)
 }
 
+local notify_callback = nil
 local door_entries = {}
+local entity_entries = {}
 local active_highlights = 0
 local max_highlights = 25
 local render_conn = nil
+
+local spawn_entities = {
+	["RushMoving"] = { alias = "Rush", body = "Find a hiding spot." },
+	["AmbushMoving"] = { alias = "Ambush", body = "Find a hiding spot." },
+	["BackdoorRush"] = { alias = "Blitz", body = "Find a hiding spot." },
+	["A60"] = { alias = "A-60", body = "Find a hiding spot." },
+	["A120"] = { alias = "A-120", body = "Find a hiding spot." },
+	["GlitchRush"] = { alias = "RNIUSHCG==", body = "Find a hiding spot." },
+	["GlitchAmbush"] = { alias = "AR0xMBUSH", body = "Find a hiding spot." },
+	["FrozenAmbush"] = { alias = "Frozen Ambush", body = "Find a hiding spot." },
+	["CustomEntity"] = { alias = "Custom Entity", body = "Find a hiding spot." },
+	["Eyes"] = { alias = "Eyes", body = "Avoid looking at it." },
+	["Lookman"] = { alias = "Eyes", body = "Avoid looking at it." },
+	["BackdoorLookman"] = { alias = "Lookman", body = "Avoid looking at its eyes." },
+	["GloombatSwarm"] = { alias = "Gloombat Swarm", body = "Keep all light sources turned off." },
+	["MonumentEntity"] = { alias = "Monument", body = "Keep looking at it so it cannot move." },
+	["JeffTheKiller"] = { alias = "Jeff the Killer", body = "Avoid touching him." },
+	["SallyMoving"] = { alias = "Sally", body = "Look for her toy." },
+	["Groundskeeper"] = { alias = "Groundskeeper", body = "Avoid stepping on the grass." },
+	["SeekMovingNewClone"] = { alias = "Seek", body = "Run from Seek!" },
+	["SeekMoving"] = { alias = "Seek", body = "Run from Seek!" }
+}
+
+local rusher_aliases = {
+	["Rush"] = true,
+	["Ambush"] = true,
+	["Eyes"] = true,
+	["Lookman"] = true,
+	["Blitz"] = true,
+	["A-60"] = true,
+	["A-120"] = true,
+	["AR0xMBUSH"] = true,
+	["RNIUSHCG=="] = true,
+	["Frozen Ambush"] = true,
+	["Custom Entity"] = true
+}
+
+local room_entities = {
+	["FigureRig"] = "Figure",
+	["FigureRagdoll"] = "Figure",
+	["Figure"] = "Figure",
+	["GrumbleRig"] = "Grumble",
+	["GiggleCeiling"] = "Giggle",
+	["Snare"] = "Snare",
+	["GloomPile"] = "Gloombat Eggs",
+	["LiveEntityBramble"] = "Bramble",
+	["Groundskeeper"] = "Groundskeeper"
+}
 
 local gui_holder = Instance.new("ScreenGui")
 gui_holder.Name = "door_vis_layer"
@@ -41,6 +95,12 @@ local function disconnect_list(list)
 		end
 	end
 	table.clear(list)
+end
+
+local function fire_notify(title, content, duration)
+	if notify_callback then
+		pcall(notify_callback, title, content, duration or 5)
+	end
 end
 
 local function get_floor()
@@ -91,7 +151,7 @@ local function build_highlight_adornee(door_model, root_part)
 	end
 
 	if #door_parts == 2 then
-		local hl_model = door_model:FindFirstChild("hl_ proxy_model")
+		local hl_model = door_model:FindFirstChild("hl_proxy_model")
 		if not hl_model then
 			hl_model = Instance.new("Model")
 			hl_model.Name = "hl_proxy_model"
@@ -121,13 +181,13 @@ local function build_highlight_adornee(door_model, root_part)
 	return root_part, false
 end
 
-local function create_tracer()
+local function create_tracer(col)
 	local ok, line = pcall(function()
 		local d = Drawing.new("Line")
 		d.Visible = false
 		d.Thickness = 1
 		d.Transparency = 0.85
-		d.Color = door_cfg.color
+		d.Color = col
 		return d
 	end)
 	if ok and line then
@@ -135,7 +195,7 @@ local function create_tracer()
 	end
 
 	local f = Instance.new("Frame")
-	f.BackgroundColor3 = door_cfg.color
+	f.BackgroundColor3 = col
 	f.BackgroundTransparency = 0.2
 	f.BorderSizePixel = 0
 	f.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -184,6 +244,30 @@ local function update_tracer(tr, from_pos, to_pos, col)
 	end
 end
 
+local function create_billboard(target, text, col)
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "esp_tag"
+	bb.Adornee = target
+	bb.Size = UDim2.fromOffset(150, 26)
+	bb.AlwaysOnTop = true
+	bb.ResetOnSpawn = false
+	bb.Parent = gui_holder
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Name = "label"
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Font = Enum.Font.Gotham
+	lbl.TextSize = 13
+	lbl.TextColor3 = col
+	lbl.TextStrokeTransparency = 0.45
+	lbl.TextStrokeColor3 = Color3.fromRGB(15, 15, 15)
+	lbl.Text = text
+	lbl.Parent = bb
+
+	return bb, lbl
+end
+
 local function remove_door_entry(door_model)
 	local entry = door_entries[door_model]
 	if not entry then return end
@@ -215,48 +299,49 @@ local function remove_door_entry(door_model)
 	door_entries[door_model] = nil
 end
 
-local function refresh_entry_visibility(entry, min_room, max_room)
+local function remove_entity_entry(obj)
+	local entry = entity_entries[obj]
+	if not entry then return end
+
+	if entry.conn_destroy and entry.conn_destroy.Connected then
+		entry.conn_destroy:Disconnect()
+	end
+	if entry.hl then
+		entry.hl:Destroy()
+		entry.hl = nil
+		active_highlights = math.max(0, active_highlights - 1)
+	end
+	if entry.billboard then
+		entry.billboard:Destroy()
+		entry.billboard = nil
+	end
+	destroy_tracer(entry.tracer)
+	entry.tracer = nil
+
+	entity_entries[obj] = nil
+end
+
+local function refresh_door_visibility(entry, min_room, max_room)
 	local is_relevant = (entry.room_num >= min_room - 1 and entry.room_num <= max_room + 1)
-	local show = door_cfg.esp and is_relevant and entry.target and entry.target.Parent ~= nil
+	local show = cfg.door_esp and is_relevant and entry.target and entry.target.Parent ~= nil
 	entry.visible = show
 
 	if show then
 		hide_barrier_parts(entry.model)
 
 		if not entry.billboard then
-			local bb = Instance.new("BillboardGui")
-			bb.Name = "door_tag"
-			bb.Adornee = entry.target
-			bb.Size = UDim2.fromOffset(140, 26)
-			bb.AlwaysOnTop = true
-			bb.ResetOnSpawn = false
-			bb.Parent = gui_holder
-
-			local lbl = Instance.new("TextLabel")
-			lbl.Name = "label"
-			lbl.Size = UDim2.fromScale(1, 1)
-			lbl.BackgroundTransparency = 1
-			lbl.Font = Enum.Font.Gotham
-			lbl.TextSize = 13
-			lbl.TextColor3 = door_cfg.color
-			lbl.TextStrokeTransparency = 0.45
-			lbl.TextStrokeColor3 = Color3.fromRGB(15, 15, 15)
-			lbl.Text = entry.base_text
-			lbl.Parent = bb
-
-			entry.billboard = bb
-			entry.label = lbl
+			entry.billboard, entry.label = create_billboard(entry.target, entry.base_text, cfg.door_color)
 		end
 		entry.billboard.Adornee = entry.target
 		entry.billboard.Enabled = true
-		entry.label.TextColor3 = door_cfg.color
+		entry.label.TextColor3 = cfg.door_color
 
 		if not entry.hl and active_highlights < max_highlights then
 			local hl = Instance.new("Highlight")
 			hl.Name = "door_hl"
 			hl.Adornee = entry.adornee or entry.target
-			hl.FillColor = door_cfg.color
-			hl.OutlineColor = door_cfg.color
+			hl.FillColor = cfg.door_color
+			hl.OutlineColor = cfg.door_color
 			hl.FillTransparency = 0.78
 			hl.OutlineTransparency = 0.15
 			hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -265,14 +350,14 @@ local function refresh_entry_visibility(entry, min_room, max_room)
 			active_highlights = active_highlights + 1
 		elseif entry.hl then
 			entry.hl.Adornee = entry.adornee or entry.target
-			entry.hl.FillColor = door_cfg.color
-			entry.hl.OutlineColor = door_cfg.color
+			entry.hl.FillColor = cfg.door_color
+			entry.hl.OutlineColor = cfg.door_color
 			entry.hl.Enabled = true
 		end
 
-		if door_cfg.tracers and not entry.tracer then
-			entry.tracer = create_tracer()
-		elseif not door_cfg.tracers and entry.tracer then
+		if cfg.tracers and not entry.tracer then
+			entry.tracer = create_tracer(cfg.door_color)
+		elseif not cfg.tracers and entry.tracer then
 			set_tracer_visible(entry.tracer, false)
 		end
 	else
@@ -290,13 +375,75 @@ local function refresh_entry_visibility(entry, min_room, max_room)
 	end
 end
 
-local function refresh_all_doors()
+local function refresh_entity_visibility(entry, min_room, max_room)
+	local is_relevant = true
+	if entry.room_based and entry.room_num then
+		is_relevant = (entry.room_num >= min_room - 1 and entry.room_num <= max_room + 1)
+	end
+	local show = cfg.entity_esp and is_relevant and entry.target and entry.target.Parent ~= nil
+	entry.visible = show
+
+	if show then
+		if not entry.billboard then
+			entry.billboard, entry.label = create_billboard(entry.target, entry.base_text, cfg.entity_color)
+		end
+		entry.billboard.Adornee = entry.target
+		entry.billboard.Enabled = true
+		entry.label.TextColor3 = cfg.entity_color
+
+		if not entry.hl and active_highlights < max_highlights then
+			local hl = Instance.new("Highlight")
+			hl.Name = "entity_hl"
+			hl.Adornee = entry.adornee or entry.model
+			hl.FillColor = cfg.entity_color
+			hl.OutlineColor = cfg.entity_color
+			hl.FillTransparency = 0.65
+			hl.OutlineTransparency = 0.1
+			hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+			hl.Parent = gui_holder
+			entry.hl = hl
+			active_highlights = active_highlights + 1
+		elseif entry.hl then
+			entry.hl.Adornee = entry.adornee or entry.model
+			entry.hl.FillColor = cfg.entity_color
+			entry.hl.OutlineColor = cfg.entity_color
+			entry.hl.Enabled = true
+		end
+
+		if cfg.tracers and not entry.tracer then
+			entry.tracer = create_tracer(cfg.entity_color)
+		elseif not cfg.tracers and entry.tracer then
+			set_tracer_visible(entry.tracer, false)
+		end
+	else
+		if entry.billboard then
+			entry.billboard.Enabled = false
+		end
+		if entry.hl then
+			entry.hl:Destroy()
+			entry.hl = nil
+			active_highlights = math.max(0, active_highlights - 1)
+		end
+		if entry.tracer then
+			set_tracer_visible(entry.tracer, false)
+		end
+	end
+end
+
+local function refresh_all()
 	local min_r, max_r = get_room_bounds()
 	for model, entry in pairs(door_entries) do
 		if not model.Parent then
 			remove_door_entry(model)
 		else
-			refresh_entry_visibility(entry, min_r, max_r)
+			refresh_door_visibility(entry, min_r, max_r)
+		end
+	end
+	for obj, entry in pairs(entity_entries) do
+		if not obj.Parent then
+			remove_entity_entry(obj)
+		else
+			refresh_entity_visibility(entry, min_r, max_r)
 		end
 	end
 end
@@ -322,7 +469,7 @@ local function register_door(door_model)
 		if not target or not target:IsA("BasePart") then
 			target = door_model.PrimaryPart or door_model:FindFirstChildWhichIsA("BasePart", true)
 		end
-		if not target or not door_cfg.esp or not door_model.Parent or door_entries[door_model] then
+		if not target or not cfg.door_esp or not door_model.Parent or door_entries[door_model] then
 			return
 		end
 
@@ -372,30 +519,175 @@ local function register_door(door_model)
 
 		door_entries[door_model] = entry
 		local min_r, max_r = get_room_bounds()
-		refresh_entry_visibility(entry, min_r, max_r)
+		refresh_door_visibility(entry, min_r, max_r)
+	end)
+end
+
+local function find_entity_part(obj)
+	if obj:IsA("BasePart") then
+		return obj
+	end
+	if obj:IsA("Model") then
+		if obj.PrimaryPart then
+			return obj.PrimaryPart
+		end
+		local main = obj:FindFirstChild("RushNew") or obj:FindFirstChild("Main") or obj:FindFirstChild("Core") or obj:FindFirstChild("Hitbox") or obj:FindFirstChild("Top")
+		if main and main:IsA("BasePart") then
+			obj.PrimaryPart = main
+			return main
+		end
+		local any_part = obj:FindFirstChildWhichIsA("BasePart", true)
+		if any_part then
+			obj.PrimaryPart = any_part
+			return any_part
+		end
+	end
+	return nil
+end
+
+local function get_parent_room_num(obj)
+	local rooms = ws:FindFirstChild("CurrentRooms")
+	if not rooms then return nil end
+	for _, r in ipairs(rooms:GetChildren()) do
+		if obj:IsDescendantOf(r) then
+			return tonumber(r.Name)
+		end
+	end
+	return nil
+end
+
+local function register_entity(obj, alias, room_based, room_num)
+	if entity_entries[obj] or not obj or not obj.Parent then return end
+
+	local target = find_entity_part(obj)
+	if not target then return end
+
+	if rusher_aliases[alias] and obj:IsA("Model") then
+		if not obj:FindFirstChild("HighlightHumanoid") then
+			local hum = Instance.new("Humanoid")
+			hum.Name = "HighlightHumanoid"
+			hum.Parent = obj
+		end
+		target.Transparency = 0.999
+		target.Material = Enum.Material.Plastic
+	end
+
+	local adornee = obj
+	if obj.Name == "MonumentEntity" and obj:FindFirstChild("Top") then
+		adornee = obj.Top
+		target = find_entity_part(obj.Top) or target
+	end
+
+	local entry = {
+		model = obj,
+		target = target,
+		adornee = adornee,
+		base_text = alias,
+		room_based = room_based or false,
+		room_num = room_num,
+		visible = false
+	}
+
+	entry.conn_destroy = obj.Destroying:Once(function()
+		remove_entity_entry(obj)
+	end)
+
+	entity_entries[obj] = entry
+	local min_r, max_r = get_room_bounds()
+	refresh_entity_visibility(entry, min_r, max_r)
+end
+
+local function handle_spawned_entity(ent)
+	local data = spawn_entities[ent.Name]
+	if not data then return end
+
+	task.spawn(function()
+		local tries = 0
+		local root = find_entity_part(ent)
+		while not root and ent.Parent and tries < 40 do
+			tries = tries + 1
+			task.wait(0.05)
+			root = find_entity_part(ent)
+		end
+		task.wait(0.1)
+
+		if not ent.Parent or not root then return end
+		if lp:DistanceFromCharacter(root.Position) >= 10000 then return end
+
+		local alias = data.alias
+		if ent.Name == "RushMoving" and root.Name ~= "RushNew" then
+			alias = root.Name
+		end
+
+		if cfg.entity_notify then
+			fire_notify("Entity '" .. alias .. "' has spawned.", data.body, 5)
+		end
+
+		if ent.Name ~= "GloombatSwarm" then
+			register_entity(ent, alias, false, nil)
+		end
+	end)
+end
+
+local function handle_room_descendant(inst)
+	if not inst or not inst.Parent then return end
+	local name = inst.Name
+
+	if room_entities[name] then
+		local alias = room_entities[name]
+		local r_num = get_parent_room_num(inst)
+		if name == "Groundskeeper" and cfg.entity_notify then
+			fire_notify("Entity 'Groundskeeper' has spawned.", "Avoid stepping on the grass.", 5)
+		end
+		task.defer(function()
+			if inst.Parent then
+				register_entity(inst, alias, true, r_num)
+			end
+		end)
+	elseif name == "MandrakeLive" then
+		task.defer(function()
+			local hole = inst:FindFirstChild("Hole")
+			if hole then
+				register_entity(hole, "Mandrake Hole", true, get_parent_room_num(inst))
+			end
+		end)
+	end
+end
+
+local function check_halt_room(room)
+	task.defer(function()
+		if not room or not room.Parent then return end
+		local raw = room:GetAttribute("RawName")
+		if (raw and tostring(raw):find("Halt")) or room:GetAttribute("Shade") == true then
+			if cfg.entity_notify then
+				fire_notify("Entity 'Halt'", "Halt will spawn in the next room.", 5)
+			end
+		end
 	end)
 end
 
 local last_room_check = 0
 
 local function step_render()
-	if not door_cfg.esp then return end
+	if not cfg.door_esp and not cfg.entity_esp then return end
 	local cam = ws.CurrentCamera
 	if not cam then return end
 
 	local now = os.clock()
 	if now - last_room_check > 0.4 then
 		last_room_check = now
-		local rooms = ws:FindFirstChild("CurrentRooms")
-		if rooms then
-			for _, room in ipairs(rooms:GetChildren()) do
-				local d = room:FindFirstChild("Door")
-				if d and not door_entries[d] then
-					register_door(d)
+		if cfg.door_esp then
+			local rooms = ws:FindFirstChild("CurrentRooms")
+			if rooms then
+				for _, room in ipairs(rooms:GetChildren()) do
+					local d = room:FindFirstChild("Door")
+					if d and not door_entries[d] then
+						register_door(d)
+					end
 				end
 			end
 		end
-		refresh_all_doors()
+		refresh_all()
 	end
 
 	local char = lp.Character
@@ -403,31 +695,71 @@ local function step_render()
 	local vp = cam.ViewportSize
 	local origin = Vector2.new(vp.X * 0.5, vp.Y)
 
-	for model, entry in pairs(door_entries) do
-		if not model.Parent or not entry.target or not entry.target.Parent then
-			remove_door_entry(model)
-		elseif entry.visible then
-			local pos = entry.target.Position
-			if entry.label then
-				if root then
-					local dist = math.floor((root.Position - pos).Magnitude)
-					entry.label.Text = entry.base_text .. " [" .. tostring(dist) .. "m]"
-				else
-					entry.label.Text = entry.base_text
+	if cfg.door_esp then
+		for model, entry in pairs(door_entries) do
+			if not model.Parent or not entry.target or not entry.target.Parent then
+				remove_door_entry(model)
+			elseif entry.visible then
+				local pos = entry.target.Position
+				if entry.label then
+					if root then
+						local dist = math.floor((root.Position - pos).Magnitude)
+						entry.label.Text = entry.base_text .. " [" .. tostring(dist) .. "m]"
+					else
+						entry.label.Text = entry.base_text
+					end
 				end
-			end
 
-			if door_cfg.tracers and entry.tracer then
-				local screen_pos, on_screen = cam:WorldToViewportPoint(pos)
-				if on_screen and screen_pos.Z > 0 then
-					update_tracer(entry.tracer, origin, Vector2.new(screen_pos.X, screen_pos.Y), door_cfg.color)
-				else
+				if cfg.tracers and entry.tracer then
+					local screen_pos, on_screen = cam:WorldToViewportPoint(pos)
+					if on_screen and screen_pos.Z > 0 then
+						update_tracer(entry.tracer, origin, Vector2.new(screen_pos.X, screen_pos.Y), cfg.door_color)
+					else
+						set_tracer_visible(entry.tracer, false)
+					end
+				elseif entry.tracer then
 					set_tracer_visible(entry.tracer, false)
 				end
-			elseif entry.tracer then
-				set_tracer_visible(entry.tracer, false)
 			end
 		end
+	end
+
+	if cfg.entity_esp then
+		for obj, entry in pairs(entity_entries) do
+			if not obj.Parent or not entry.target or not entry.target.Parent then
+				remove_entity_entry(obj)
+			elseif entry.visible then
+				local pos = entry.target.Position
+				if entry.label then
+					if root then
+						local dist = math.floor((root.Position - pos).Magnitude)
+						entry.label.Text = entry.base_text .. " [" .. tostring(dist) .. "m]"
+					else
+						entry.label.Text = entry.base_text
+					end
+				end
+
+				if cfg.tracers and entry.tracer then
+					local screen_pos, on_screen = cam:WorldToViewportPoint(pos)
+					if on_screen and screen_pos.Z > 0 then
+						update_tracer(entry.tracer, origin, Vector2.new(screen_pos.X, screen_pos.Y), cfg.entity_color)
+					else
+						set_tracer_visible(entry.tracer, false)
+					end
+				elseif entry.tracer then
+					set_tracer_visible(entry.tracer, false)
+				end
+			end
+		end
+	end
+end
+
+local function update_render_loop()
+	if (cfg.door_esp or cfg.entity_esp) and not render_conn then
+		render_conn = run.RenderStepped:Connect(step_render)
+	elseif not cfg.door_esp and not cfg.entity_esp and render_conn then
+		render_conn:Disconnect()
+		render_conn = nil
 	end
 end
 
@@ -444,8 +776,8 @@ local function start_door_tracking()
 	end
 
 	table.insert(conns_door, rooms.DescendantAdded:Connect(function(inst)
-		if not door_cfg.esp then return end
-		if inst.Name == "Door" and inst:IsA("Model") and inst.Parent == rooms.Parent or (inst.Parent and inst.Parent.Parent == rooms and inst.Name == "Door") then
+		if not cfg.door_esp then return end
+		if inst.Name == "Door" and inst:IsA("Model") and inst.Parent and inst.Parent.Parent == rooms then
 			register_door(inst)
 		elseif inst.Name == "Door" and inst:IsA("BasePart") and inst.Parent and inst.Parent.Name == "Door" then
 			register_door(inst.Parent)
@@ -462,45 +794,99 @@ local function start_door_tracking()
 		end
 	end))
 
-	table.insert(conns_door, lp:GetAttributeChangedSignal("CurrentRoom"):Connect(refresh_all_doors))
+	table.insert(conns_door, lp:GetAttributeChangedSignal("CurrentRoom"):Connect(refresh_all))
 
 	local gd = rs:FindFirstChild("GameData")
 	local lr = gd and gd:FindFirstChild("LatestRoom")
 	if lr then
-		table.insert(conns_door, lr:GetPropertyChangedSignal("Value"):Connect(refresh_all_doors))
+		table.insert(conns_door, lr:GetPropertyChangedSignal("Value"):Connect(refresh_all))
 	end
 
-	if not render_conn then
-		render_conn = run.RenderStepped:Connect(step_render)
-	end
+	update_render_loop()
 end
 
 local function stop_door_tracking()
 	disconnect_list(conns_door)
-	if render_conn then
-		render_conn:Disconnect()
-		render_conn = nil
-	end
 	for model in pairs(door_entries) do
 		remove_door_entry(model)
 	end
+	update_render_loop()
+end
+
+local function sync_entity_tracking()
+	disconnect_list(conns_entity)
+	if not cfg.entity_esp and not cfg.entity_notify then
+		for obj in pairs(entity_entries) do
+			remove_entity_entry(obj)
+		end
+		update_render_loop()
+		return
+	end
+
+	for _, ch in ipairs(ws:GetChildren()) do
+		if spawn_entities[ch.Name] then
+			handle_spawned_entity(ch)
+		end
+	end
+
+	table.insert(conns_entity, ws.ChildAdded:Connect(function(ch)
+		if spawn_entities[ch.Name] then
+			handle_spawned_entity(ch)
+		end
+	end))
+
+	local rooms = ws:FindFirstChild("CurrentRooms")
+	if rooms then
+		for _, desc in ipairs(rooms:GetDescendants()) do
+			handle_room_descendant(desc)
+		end
+		table.insert(conns_entity, rooms.DescendantAdded:Connect(handle_room_descendant))
+		table.insert(conns_entity, rooms.ChildAdded:Connect(check_halt_room))
+	end
+
+	if not cfg.entity_esp then
+		for obj in pairs(entity_entries) do
+			remove_entity_entry(obj)
+		end
+	end
+
+	update_render_loop()
+	refresh_all()
+end
+
+function vis.set_notifier(fn)
+	notify_callback = fn
 end
 
 function vis.door_esp(state)
-	door_cfg.esp = state
+	cfg.door_esp = state
 	if state then
 		start_door_tracking()
-		refresh_all_doors()
+		refresh_all()
 	else
 		stop_door_tracking()
 	end
 end
 
-function vis.door_tracers(state)
-	door_cfg.tracers = state
-	if door_cfg.esp then
-		refresh_all_doors()
+function vis.entity_esp(state, notify_fn)
+	if notify_fn then
+		notify_callback = notify_fn
 	end
+	cfg.entity_esp = state
+	sync_entity_tracking()
+end
+
+function vis.entity_notify(state, notify_fn)
+	if notify_fn then
+		notify_callback = notify_fn
+	end
+	cfg.entity_notify = state
+	sync_entity_tracking()
+end
+
+function vis.door_tracers(state)
+	cfg.tracers = state
+	refresh_all()
 end
 
 local function apply_dupe_visual(door)
@@ -555,6 +941,8 @@ end
 function vis.cleanup()
 	vis.dupe(false)
 	vis.door_esp(false)
+	vis.entity_esp(false)
+	vis.entity_notify(false)
 	if gui_holder then
 		gui_holder:Destroy()
 	end
