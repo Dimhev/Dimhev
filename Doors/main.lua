@@ -45,13 +45,24 @@ local tab_visuals = wnd:CreateTab("Visuals")
 
 local sec_vis_doors = tab_visuals:CreateSection("ESP")
 
-sec_vis_doors:CreateToggle("Enable Door ESP", false, function(val)
+sec_vis_esp:CreateToggle("Enable Door ESP", false, function(val)
 	vis.door_esp(val)
 end, "Highlights active doors with door number and distance")
 
-sec_vis_doors:CreateToggle("Enable Tracers", false, function(val)
+sec_vis_esp:CreateToggle("Enable Entity ESP", false, function(val)
+	vis.entity_esp(val)
+	vis.entity_notify(val, function(title, content, duration)
+		moonlight:Notify({
+			Title = title,
+			Content = content,
+			Duration = duration or 5
+		})
+	end)
+end, "Highlights all entities and notifies when an entity spawns")
+
+sec_vis_esp:CreateToggle("Enable Tracers", false, function(val)
 	vis.door_tracers(val)
-end, "Draws thin tracer lines")
+end, "Draws thin tracer lines to active doors and entities")
 
 local tab_doors = wnd:CreateTab("Hotel")
 
