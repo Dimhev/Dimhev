@@ -49,12 +49,16 @@ local function get_floor()
 	return fl and fl.Value or "Hotel"
 end
 
-local function get_current_room()
-	local attr = tonumber(lp:GetAttribute("CurrentRoom"))
-	if attr then return attr end
+local function get_room_bounds()
+	local cur = tonumber(lp:GetAttribute("CurrentRoom"))
 	local gd = rs:FindFirstChild("GameData")
-	local lr = gd and gd:FindFirstChild("LatestRoom")
-	return lr and lr.Value or 0
+	local lr = gd and gd:FindFirstChild("LatestRoom") and gd.LatestRoom.Value
+	local min_r = cur or lr or 0
+	local max_r = lr or cur or 0
+	if min_r > max_r then
+		min_r, max_r = max_r, min_r
+	end
+	return min_r, max_r
 end
 
 local function get_door_number(door_model, room_num)
@@ -68,15 +72,53 @@ local function get_door_number(door_model, room_num)
 	return tostring(num)
 end
 
-local function get_door_target(door_model)
-	local base = door_model:FindFirstChild("Door")
-	if base and base:IsA("BasePart") then
-		return base
+local function hide_barrier_parts(door_model)
+	for _, desc in ipairs(door_model:GetDescendants()) do
+		if desc:IsA("BasePart") and (desc.Name == "Hidden" or desc.Name == "ColBox") then
+			desc.Transparency = 1
+		end
 	end
-	if door_model.PrimaryPart then
-		return door_model.PrimaryPart
+end
+
+local function build_highlight_adornee(door_model, root_part)
+	hide_barrier_parts(door_model)
+
+	local door_parts = {}
+	for _, ch in ipairs(door_model:GetChildren()) do
+		if ch.Name == "Door" and ch:IsA("BasePart") then
+			table.insert(door_parts, ch)
+		end
 	end
-	return door_model:FindFirstChildWhichIsA("BasePart", true)
+
+	if #door_parts == 2 then
+		local hl_model = door_model:FindFirstChild("hl_ proxy_model")
+		if not hl_model then
+			hl_model = Instance.new("Model")
+			hl_model.Name = "hl_proxy_model"
+			for _, dp in ipairs(door_parts) do
+				local hp = Instance.new("Part")
+				hp.Name = "hl_part"
+				hp.Transparency = 0.999
+				hp.Size = dp.Size
+				hp.CFrame = dp.CFrame
+				hp.CanCollide = false
+				hp.CanQuery = false
+				hp.CanTouch = false
+				hp.Massless = true
+				hp.Material = Enum.Material.Plastic
+				hp.Parent = hl_model
+
+				local w = Instance.new("WeldConstraint")
+				w.Part0 = hp
+				w.Part1 = dp
+				w.Parent = hp
+			end
+			hl_model.Parent = door_model
+		end
+		return hl_model, true
+	end
+
+	return root_part, false
 end
 
 local function create_tracer()
@@ -149,13 +191,19 @@ local function remove_door_entry(door_model)
 	if entry.conn_destroy and entry.conn_destroy.Connected then
 		entry.conn_destroy:Disconnect()
 	end
-	if entry.conn_lock and entry.conn_lock.Connected then
-		entry.conn_lock:Disconnect()
+	if entry.conn_child_add and entry.conn_child_add.Connected then
+		entry.conn_child_add:Disconnect()
+	end
+	if entry.conn_child_rem and entry.conn_child_rem.Connected then
+		entry.conn_child_rem:Disconnect()
 	end
 	if entry.hl then
 		entry.hl:Destroy()
 		entry.hl = nil
 		active_highlights = math.max(0, active_highlights - 1)
+	end
+	if entry.has_proxy and entry.adornee and entry.adornee.Parent then
+		entry.adornee:Destroy()
 	end
 	if entry.billboard then
 		entry.billboard:Destroy()
@@ -167,12 +215,14 @@ local function remove_door_entry(door_model)
 	door_entries[door_model] = nil
 end
 
-local function refresh_entry_visibility(entry, cur_room)
-	local is_relevant = (entry.room_num == cur_room or entry.room_num == cur_room + 1)
+local function refresh_entry_visibility(entry, min_room, max_room)
+	local is_relevant = (entry.room_num >= min_room - 1 and entry.room_num <= max_room + 1)
 	local show = door_cfg.esp and is_relevant and entry.target and entry.target.Parent ~= nil
 	entry.visible = show
 
 	if show then
+		hide_barrier_parts(entry.model)
+
 		if not entry.billboard then
 			local bb = Instance.new("BillboardGui")
 			bb.Name = "door_tag"
@@ -197,13 +247,14 @@ local function refresh_entry_visibility(entry, cur_room)
 			entry.billboard = bb
 			entry.label = lbl
 		end
+		entry.billboard.Adornee = entry.target
 		entry.billboard.Enabled = true
 		entry.label.TextColor3 = door_cfg.color
 
 		if not entry.hl and active_highlights < max_highlights then
 			local hl = Instance.new("Highlight")
 			hl.Name = "door_hl"
-			hl.Adornee = entry.model
+			hl.Adornee = entry.adornee or entry.target
 			hl.FillColor = door_cfg.color
 			hl.OutlineColor = door_cfg.color
 			hl.FillTransparency = 0.78
@@ -213,6 +264,7 @@ local function refresh_entry_visibility(entry, cur_room)
 			entry.hl = hl
 			active_highlights = active_highlights + 1
 		elseif entry.hl then
+			entry.hl.Adornee = entry.adornee or entry.target
 			entry.hl.FillColor = door_cfg.color
 			entry.hl.OutlineColor = door_cfg.color
 			entry.hl.Enabled = true
@@ -239,61 +291,112 @@ local function refresh_entry_visibility(entry, cur_room)
 end
 
 local function refresh_all_doors()
-	local cur_room = get_current_room()
+	local min_r, max_r = get_room_bounds()
 	for model, entry in pairs(door_entries) do
 		if not model.Parent then
 			remove_door_entry(model)
 		else
-			refresh_entry_visibility(entry, cur_room)
+			refresh_entry_visibility(entry, min_r, max_r)
 		end
 	end
 end
 
 local function update_door_text(entry)
-	local locked = entry.model:FindFirstChild("Lock") ~= nil
+	local locked = (entry.model:FindFirstChild("Lock") ~= nil) or (entry.model:FindFirstChild("Lock", true) ~= nil)
 	local suffix = locked and " [locked]" or ""
 	entry.base_text = "Door " .. entry.door_num .. suffix
 end
 
 local function register_door(door_model)
 	if door_entries[door_model] then return end
-	if door_model.Name ~= "Door" or not door_model.Parent then return end
+	if not door_model or door_model.Name ~= "Door" or not door_model.Parent then return end
 
 	local room_num = tonumber(door_model.Parent.Name)
 	if not room_num then return end
 
-	local target = get_door_target(door_model)
-	if not target then return end
-
-	local entry = {
-		model = door_model,
-		target = target,
-		room_num = room_num,
-		door_num = get_door_number(door_model, room_num),
-		base_text = "",
-		visible = false
-	}
-
-	update_door_text(entry)
-
-	entry.conn_lock = door_model.ChildRemoved:Connect(function(ch)
-		if ch.Name == "Lock" then
-			update_door_text(entry)
+	task.spawn(function()
+		local target = door_model:FindFirstChild("Door")
+		if not (target and target:IsA("BasePart")) then
+			target = door_model:WaitForChild("Door", 30)
 		end
-	end)
+		if not target or not target:IsA("BasePart") then
+			target = door_model.PrimaryPart or door_model:FindFirstChildWhichIsA("BasePart", true)
+		end
+		if not target or not door_cfg.esp or not door_model.Parent or door_entries[door_model] then
+			return
+		end
 
-	entry.conn_destroy = door_model.Destroying:Once(function()
-		remove_door_entry(door_model)
-	end)
+		local adornee, has_proxy = build_highlight_adornee(door_model, target)
 
-	door_entries[door_model] = entry
-	refresh_entry_visibility(entry, get_current_room())
+		local entry = {
+			model = door_model,
+			target = target,
+			adornee = adornee,
+			has_proxy = has_proxy,
+			room_num = room_num,
+			door_num = get_door_number(door_model, room_num),
+			base_text = "",
+			visible = false
+		}
+
+		update_door_text(entry)
+
+		entry.conn_child_add = door_model.DescendantAdded:Connect(function(ch)
+			if ch:IsA("BasePart") and (ch.Name == "Hidden" or ch.Name == "ColBox") then
+				ch.Transparency = 1
+			elseif ch.Name == "Lock" then
+				update_door_text(entry)
+			elseif ch.Name == "Door" and ch:IsA("BasePart") then
+				local new_adornee, new_proxy = build_highlight_adornee(door_model, entry.target)
+				entry.adornee = new_adornee
+				entry.has_proxy = new_proxy
+				if entry.hl then
+					entry.hl.Adornee = entry.adornee
+				end
+			end
+		end)
+
+		entry.conn_child_rem = door_model.DescendantRemoved:Connect(function(ch)
+			if ch.Name == "Lock" then
+				task.defer(function()
+					if door_entries[door_model] then
+						update_door_text(entry)
+					end
+				end)
+			end
+		end)
+
+		entry.conn_destroy = door_model.Destroying:Once(function()
+			remove_door_entry(door_model)
+		end)
+
+		door_entries[door_model] = entry
+		local min_r, max_r = get_room_bounds()
+		refresh_entry_visibility(entry, min_r, max_r)
+	end)
 end
+
+local last_room_check = 0
 
 local function step_render()
 	if not door_cfg.esp then return end
 	local cam = ws.CurrentCamera
 	if not cam then return end
+
+	local now = os.clock()
+	if now - last_room_check > 0.4 then
+		last_room_check = now
+		local rooms = ws:FindFirstChild("CurrentRooms")
+		if rooms then
+			for _, room in ipairs(rooms:GetChildren()) do
+				local d = room:FindFirstChild("Door")
+				if d and not door_entries[d] then
+					register_door(d)
+				end
+			end
+		end
+		refresh_all_doors()
+	end
 
 	local char = lp.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -340,14 +443,15 @@ local function start_door_tracking()
 		end
 	end
 
-	table.insert(conns_door, rooms.ChildAdded:Connect(function(room)
-		task.defer(function()
-			local d = room:WaitForChild("Door", 5)
-			if d and door_cfg.esp then
-				register_door(d)
-				refresh_all_doors()
-			end
-		end)
+	table.insert(conns_door, rooms.DescendantAdded:Connect(function(inst)
+		if not door_cfg.esp then return end
+		if inst.Name == "Door" and inst:IsA("Model") and inst.Parent == rooms.Parent or (inst.Parent and inst.Parent.Parent == rooms and inst.Name == "Door") then
+			register_door(inst)
+		elseif inst.Name == "Door" and inst:IsA("BasePart") and inst.Parent and inst.Parent.Name == "Door" then
+			register_door(inst.Parent)
+		elseif inst:IsA("BasePart") and (inst.Name == "Hidden" or inst.Name == "ColBox") and inst.Parent and inst.Parent.Name == "Door" then
+			inst.Transparency = 1
+		end
 	end))
 
 	table.insert(conns_door, rooms.ChildRemoved:Connect(function(room)
