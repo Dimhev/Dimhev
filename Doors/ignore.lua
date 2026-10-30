@@ -332,6 +332,27 @@ local function is_in_minecart()
 	return cam and cam:FindFirstChild("MinecartRig") ~= nil
 end
 
+local rush_entities = {
+	["RushMoving"] = true,
+	["AmbushMoving"] = true,
+	["A60"] = true,
+	["A120"] = true,
+	["BackdoorRush"] = true,
+	["GlitchRush"] = true,
+	["GlitchAmbush"] = true,
+	["CustomEntity"] = true,
+	["FrozenAmbush"] = true
+}
+
+local function is_rush_active()
+	for _, obj in ipairs(workspace:GetChildren()) do
+		if rush_entities[obj.Name] then
+			return true
+		end
+	end
+	return false
+end
+
 function ign.rush(state)
 	active_rush = state
 	disconnect_list(conns_rush)
@@ -385,7 +406,7 @@ function ign.rush(state)
 			if should_lower and not is_lowered then
 				is_lowered = true
 				root.CFrame = root.CFrame * CFrame.new(0, -2.346, 0)
-				hum.HipHeight = 0.45
+				hum.HipHeight = 0.25
 				if crouch_rem then
 					crouch_rem:FireServer(true, true)
 				end
@@ -429,6 +450,17 @@ function ign.rush(state)
 				set_lowered_state(true)
 			end
 
+			local danger = is_rush_active()
+
+			local target_hip = danger and 0.05 or 0.25
+			h.HipHeight = target_hip
+
+			local vel = r.AssemblyLinearVelocity
+			local max_up_vel = danger and 2.5 or 7.0
+			if vel.Y > max_up_vel and h:GetState() ~= Enum.HumanoidStateType.Jumping then
+				r.AssemblyLinearVelocity = Vector3.new(vel.X, max_up_vel, vel.Z)
+			end
+
 			r.CanCollide = false
 			for _, part in ipairs(c:GetChildren()) do
 				if part:IsA("BasePart") and part ~= col_clone then
@@ -451,29 +483,31 @@ function ign.rush(state)
 				col_clone.CanCollide = not is_crouch
 			end
 
+			local cam_offset_y = 2.396 - target_hip
 			if rj and original_c1 then
-				rj.C1 = original_c1 * CFrame.new(0, -2.15, 0)
+				rj.C1 = original_c1 * CFrame.new(0, -cam_offset_y, 0)
 			end
-
-			local spoof_y = 2.15
+				
+			local spoof_y = danger and 1.45 or 2.20
 			col.Position = r.Position + Vector3.new(0, spoof_y, 0)
 			if col_p then
 				col_p.Position = r.Position + Vector3.new(0, spoof_y, 0)
 			end
 
 			if col:FindFirstChild("CollisionCrouch") and clone_crouch then
-				col.CollisionCrouch.Position = r.Position + Vector3.new(0, 1.15, 0)
+				col.CollisionCrouch.Position = r.Position + Vector3.new(0, spoof_y - 1.0, 0)
 				clone_crouch.CollisionGroup = col.CollisionCrouch.CollisionGroup
 			end
 
+			local clone_offset = danger and 2.35 or 2.25
 			if clone_crouch then
-				clone_crouch.Position = r.Position + Vector3.new(0, 1.25, 0)
+				clone_crouch.Position = r.Position + Vector3.new(0, clone_offset - 1.0, 0)
 			end
 
 			col_clone.CollisionGroup = col.CollisionGroup
-			col_clone.Position = r.Position + Vector3.new(0, 2.25, 0)
+			col_clone.Position = r.Position + Vector3.new(0, clone_offset, 0)
 
-			if crouch_rem and (tick() - last_crouch_send > 0.1) then
+			if crouch_rem and (tick() - last_crouch_send > 0.08) then
 				last_crouch_send = tick()
 				crouch_rem:FireServer(true, true)
 			end
@@ -505,6 +539,7 @@ function ign.rush(state)
 		end
 	end
 end
+
 
 function ign.cleanup()
 	ign.screech(false)
