@@ -26,6 +26,7 @@ local cfg = {
 local notify_callback = nil
 local active_highlights = 0
 local max_highlights = 31
+local highlight_registry = {}
 local render_conn = nil
 local last_room_check = 0
 
@@ -102,9 +103,20 @@ local function create_billboard(target, text, col)
 	return bb, lbl
 end
 
-local function alloc_highlight(adornee, color, fill_trans, outline_trans)
-	if active_highlights >= max_highlights then return nil end
+local function alloc_highlight(
+	adornee,
+	color,
+	fill_trans,
+	outline_trans
+)
+	if not gui_holder.Parent
+		or active_highlights >= max_highlights
+	then
+		return nil
+	end
+
 	local hl = Instance.new("Highlight")
+
 	hl.Name = "vis_hl"
 	hl.Adornee = adornee
 	hl.FillColor = color
@@ -112,16 +124,33 @@ local function alloc_highlight(adornee, color, fill_trans, outline_trans)
 	hl.FillTransparency = fill_trans or 0.7
 	hl.OutlineTransparency = outline_trans or 0.15
 	hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+
+	active_highlights += 1
+
+	highlight_registry[hl] = hl.Destroying:Once(function()
+		if highlight_registry[hl] then
+			highlight_registry[hl] = nil
+			active_highlights -= 1
+		end
+	end)
+
 	hl.Parent = gui_holder
-	active_highlights = active_highlights + 1
+
 	return hl
 end
 
 local function free_highlight(hl)
-	if is_inst(hl) then
-		hl:Destroy()
-		active_highlights = math.max(0, active_highlights - 1)
+	local connection = highlight_registry[hl]
+
+	if not connection then
+		return
 	end
+
+	highlight_registry[hl] = nil
+	active_highlights -= 1
+
+	connection:Disconnect()
+	hl:Destroy()
 end
 
 local tracer_service = {}
