@@ -212,21 +212,60 @@ local base = "https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/compone
 
 local function load_component(name)
 	local url = base .. name .. ".lua"
-	local ok, res = pcall(function()
-		return loadstring(game:HttpGet(url))()
+
+	local ok, result = pcall(function()
+		local source = game:HttpGet(url)
+		local chunk, compile_error = loadstring(source)
+
+		if not chunk then
+			error(compile_error)
+		end
+
+		local component = chunk()
+
+		assert(
+			type(component) == "table",
+			"Component must return a table"
+		)
+
+		assert(
+			type(component.init) == "function",
+			"Component must expose init(context)"
+		)
+
+		component.init(ctx)
+		return component
 	end)
-	res.init(ctx)
-	return res
+
+	if not ok then
+		warn(
+			("[visuals] Failed to load %s: %s"):format(
+				name,
+				tostring(result)
+			)
+		)
+
+		return nil
+	end
+
+	return result
+end
+
+local tracker_comp = load_component("room_tracker")
+
+if not tracker_comp then
+	gui_holder:Destroy()
+	error("[visuals] room_tracker is required")
+end
+
+ctx.make_room_tracker = function(spec)
+	return tracker_comp.new(ctx, spec)
 end
 
 local doors_comp = load_component("doors")
 local entities_comp = load_component("entities")
 local items_comp = load_component("items")
 local gold_comp = load_component("gold")
-
-local function has_any_esp()
-	return cfg.door_esp or cfg.entity_esp or cfg.item_esp or cfg.gold_esp
-end
 
 local function refresh_all()
 	local min_r, max_r = get_room_bounds()
