@@ -28,7 +28,11 @@ local active_highlights = 0
 local max_highlights = 31
 local highlight_registry = {}
 local render_conn = nil
-local last_room_check = 0
+local maintenance_conn = nil
+local maintenance_at = 0
+local item_scan_at = 0
+local legacy_step_at = 0
+local cleaned = false
 
 local gui_holder = Instance.new("ScreenGui")
 gui_holder.Name = "door_vis_layer"
@@ -381,50 +385,104 @@ local function refresh_all()
 end
 
 local function step_render()
-	if not has_any_esp() then return end
-	local cam = ws.CurrentCamera
-	if not cam then return end
+	if cleaned or not has_any_esp() then
+		return
+	end
 
-	local now = os.clock()
-	if now - last_room_check > 0.4 then
-		last_room_check = now
-		if cfg.door_esp and doors_comp then
-			doors_comp.scan_rooms()
-		end
-		if cfg.item_esp and items_comp then
-			items_comp.scan_rooms()
-		end
-		if cfg.gold_esp and gold_comp then
-			gold_comp.scan_rooms()
-		end
-		refresh_all()
+	local cam = ws.CurrentCamera
+	if not cam then
+		return
 	end
 
 	local char = lp.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
-	local vp = cam.ViewportSize
-	local origin = Vector2.new(vp.X * 0.5, vp.Y)
+
+	local viewport = cam.ViewportSize
+	local origin = Vector2.new(
+		viewport.X * 0.5,
+		viewport.Y
+	)
 
 	if cfg.door_esp and doors_comp then
 		doors_comp.step(cam, root, origin)
 	end
-	if cfg.entity_esp and entities_comp then
-		entities_comp.step(cam, root, origin)
-	end
-	if cfg.item_esp and items_comp then
-		items_comp.step(cam, root, origin)
-	end
+
 	if cfg.gold_esp and gold_comp then
 		gold_comp.step(cam, root, origin)
+	end
+
+	local now = os.clock()
+	local step_legacy = cfg.tracers or now >= legacy_step_at
+
+	if step_legacy then
+		legacy_step_at = now + 0.1
+
+		if cfg.entity_esp and entities_comp then
+			entities_comp.step(cam, root, origin)
+		end
+
+		if cfg.item_esp and items_comp then
+			items_comp.step(cam, root, origin)
+		end
+	end
+end
+
+local function maintenance_step()
+	if cleaned then
+		return
+	end
+
+	local now = os.clock()
+
+	if now >= maintenance_at then
+		maintenance_at = now + 0.5
+
+		local min_room, max_room = get_room_bounds()
+
+		if entities_comp then
+			entities_comp.refresh(min_room, max_room)
+		end
+
+		if items_comp then
+			items_comp.refresh(min_room, max_room)
+		end
+	end
+
+	if cfg.item_esp
+		and items_comp
+		and now >= item_scan_at
+	then
+		item_scan_at = now + 2
+		items_comp.scan_rooms()
 	end
 end
 
 local function update_render_loop()
-	if has_any_esp() and not render_conn then
+	if cleaned then
+		return
+	end
+
+	local need_render = has_any_esp()
+	local need_maintenance = need_render or cfg.entity_notify
+
+	if need_render and not render_conn then
+		legacy_step_at = 0
 		render_conn = run.RenderStepped:Connect(step_render)
-	elseif not has_any_esp() and render_conn then
+	elseif not need_render and render_conn then
 		render_conn:Disconnect()
 		render_conn = nil
+	end
+
+	if need_maintenance and not maintenance_conn then
+		maintenance_at = 0
+		item_scan_at = 0
+
+		maintenance_conn = run.Heartbeat:Connect(
+			maintenance_step
+		)
+	elseif not need_maintenance and maintenance_conn then
+		maintenance_conn:Disconnect()
+		maintenance_conn = nil
 	end
 end
 
@@ -455,6 +513,9 @@ local function check_inst(inst)
 end
 
 function vis.dupe(state)
+		if cleaned then
+		return
+	end
 	active_dupe = state
 	disconnect_list(conns_dupe)
 
@@ -489,10 +550,20 @@ function vis.dupe(state)
 end
 
 function vis.set_notifier(fn)
-	notify_callback = fn
+	if cleaned then
+		return
+	end
+
+	notify_callback = type(fn) == "function" and fn or nil
 end
 
 function vis.door_esp(state)
+	state = not not state
+
+	if cleaned or cfg.door_esp == state then
+		return
+	end
+
 	cfg.door_esp = state
 	if doors_comp then
 		if state then
@@ -506,28 +577,65 @@ function vis.door_esp(state)
 end
 
 function vis.entity_esp(state, notify_fn)
+	if cleaned then
+		return
+	end
+
 	if notify_fn then
 		notify_callback = notify_fn
 	end
+
+	state = not not state
+
+	if cfg.entity_esp == state then
+		return
+	end
+
 	cfg.entity_esp = state
+
 	if entities_comp then
 		entities_comp.sync()
 	end
+
 	update_render_loop()
 end
 
 function vis.entity_notify(state, notify_fn)
+	if cleaned then
+		return
+	end
+
 	if notify_fn then
 		notify_callback = notify_fn
 	end
+
+	state = not not state
+
+	if cfg.entity_notify == state then
+		return
+	end
+
 	cfg.entity_notify = state
+
 	if entities_comp then
 		entities_comp.sync()
 	end
+
 	update_render_loop()
 end
 
 function vis.item_esp(state)
+	state = not not state
+
+	if cleaned or cfg.item_esp == state then
+		return
+	end
+
+	cfg.item_esp = state
+	if cleaned or cfg.item_esp == state then
+		return
+	end
+
 	cfg.item_esp = state
 	if items_comp then
 		if state then
@@ -541,6 +649,12 @@ function vis.item_esp(state)
 end
 
 function vis.gold_esp(state)
+	state = not not state
+
+	if cleaned or cfg.gold_esp == state then
+		return
+	end
+
 	cfg.gold_esp = state
 	if gold_comp then
 		if state then
@@ -554,39 +668,79 @@ function vis.gold_esp(state)
 end
 
 function vis.door_tracers(state)
+	if cleaned then
+		return
+	end
+
+	state = not not state
+
+	if cfg.tracers == state then
+		return
+	end
+
 	cfg.tracers = state
 	refresh_all()
 end
 
 function vis.cleanup()
-	vis.dupe(false)
-	vis.door_esp(false)
-	vis.entity_esp(false)
-	vis.entity_notify(false)
-	vis.item_esp(false)
-	vis.gold_esp(false)
+	if cleaned then
+		return
+	end
 
-	if doors_comp then
-		doors_comp.cleanup()
-	end
-	if entities_comp then
-		entities_comp.cleanup()
-	end
-	if items_comp then
-		items_comp.cleanup()
-	end
-	if gold_comp then
-		gold_comp.cleanup()
-	end
+	cleaned = true
+
+	active_dupe = false
+	disconnect_list(conns_dupe)
 
 	if render_conn then
 		render_conn:Disconnect()
 		render_conn = nil
 	end
 
-	if is_inst(gui_holder) then
-		gui_holder:Destroy()
+	if maintenance_conn then
+		maintenance_conn:Disconnect()
+		maintenance_conn = nil
 	end
+
+	cfg.door_esp = false
+	cfg.entity_esp = false
+	cfg.entity_notify = false
+	cfg.item_esp = false
+	cfg.gold_esp = false
+	cfg.tracers = false
+
+	notify_callback = nil
+
+	local function cleanup_component(name, component)
+		if not component then
+			return
+		end
+
+		local ok, err = pcall(component.cleanup)
+
+		if not ok then
+			warn(
+				("[visuals] %s cleanup failed: %s"):format(
+					name,
+					tostring(err)
+				)
+			)
+		end
+	end
+
+	cleanup_component("doors", doors_comp)
+	cleanup_component("entities", entities_comp)
+	cleanup_component("items", items_comp)
+	cleanup_component("gold", gold_comp)
+	for tracer in pairs(tracer_registry) do
+		tracer_service.destroy(tracer)
+	end
+
+	for highlight in pairs(highlight_registry) do
+		free_highlight(highlight)
+	end
+
+	gui_holder:Destroy()
 end
 
 return vis
