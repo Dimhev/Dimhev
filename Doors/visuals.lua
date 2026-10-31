@@ -44,7 +44,7 @@ local spawn_entities = {
 	["GloombatSwarm"] = { alias = "Gloombat Swarm", body = "Keep all light sources turned off." },
 	["MonumentEntity"] = { alias = "Monument", body = "Keep looking at it so it cannot move." },
 	["JeffTheKiller"] = { alias = "Jeff the Killer", body = "Avoid touching him." },
-	["SallyMoving"] = { alias = "Sally", body = "Look for her toy." },
+	["SallyMoving"] = { alias = "Sally", body = "Drop an item for her." },
 	["Groundskeeper"] = { alias = "Groundskeeper", body = "Avoid stepping on the grass." },
 	["SeekMovingNewClone"] = { alias = "Seek", body = "Run from Seek!" },
 	["SeekMoving"] = { alias = "Seek", body = "Run from Seek!" }
@@ -88,6 +88,10 @@ if not gui_holder.Parent then
 	gui_holder.Parent = lp:WaitForChild("PlayerGui")
 end
 
+local function is_inst(v)
+	return typeof(v) == "Instance"
+end
+
 local function disconnect_list(list)
 	for _, c in ipairs(list) do
 		if typeof(c) == "RBXScriptConnection" and c.Connected then
@@ -122,7 +126,7 @@ local function get_room_bounds()
 end
 
 local function get_door_number(door_model, room_num)
-	local num = (room_num or tonumber(door_model.Parent.Name) or 0) + 1
+	local num = (room_num or (is_inst(door_model.Parent) and tonumber(door_model.Parent.Name)) or 0) + 1
 	local fl = get_floor()
 	if fl == "Mines" then
 		num = num + 100
@@ -133,52 +137,20 @@ local function get_door_number(door_model, room_num)
 end
 
 local function hide_barrier_parts(door_model)
-	for _, desc in ipairs(door_model:GetDescendants()) do
-		if desc:IsA("BasePart") and (desc.Name == "Hidden" or desc.Name == "ColBox") then
-			desc.Transparency = 1
-		end
+	if not is_inst(door_model) then return end
+	local h = door_model:FindFirstChild("Hidden")
+	if h and h:IsA("BasePart") then
+		h.Transparency = 1
 	end
-end
-
-local function build_highlight_adornee(door_model, root_part)
-	hide_barrier_parts(door_model)
-
-	local door_parts = {}
+	local cb = door_model:FindFirstChild("ColBox")
+	if cb and cb:IsA("BasePart") then
+		cb.Transparency = 1
+	end
 	for _, ch in ipairs(door_model:GetChildren()) do
-		if ch.Name == "Door" and ch:IsA("BasePart") then
-			table.insert(door_parts, ch)
+		if ch:IsA("BasePart") and (ch.Name == "Hidden" or ch.Name == "ColBox") then
+			ch.Transparency = 1
 		end
 	end
-
-	if #door_parts == 2 then
-		local hl_model = door_model:FindFirstChild("hl_proxy_model")
-		if not hl_model then
-			hl_model = Instance.new("Model")
-			hl_model.Name = "hl_proxy_model"
-			for _, dp in ipairs(door_parts) do
-				local hp = Instance.new("Part")
-				hp.Name = "hl_part"
-				hp.Transparency = 0.999
-				hp.Size = dp.Size
-				hp.CFrame = dp.CFrame
-				hp.CanCollide = false
-				hp.CanQuery = false
-				hp.CanTouch = false
-				hp.Massless = true
-				hp.Material = Enum.Material.Plastic
-				hp.Parent = hl_model
-
-				local w = Instance.new("WeldConstraint")
-				w.Part0 = hp
-				w.Part1 = dp
-				w.Parent = hp
-			end
-			hl_model.Parent = door_model
-		end
-		return hl_model, true
-	end
-
-	return root_part, false
 end
 
 local function create_tracer(col)
@@ -212,7 +184,7 @@ local function destroy_tracer(tr)
 			tr.obj:Remove()
 		end)
 	else
-		if tr.obj then
+		if is_inst(tr.obj) then
 			tr.obj:Destroy()
 		end
 	end
@@ -281,15 +253,12 @@ local function remove_door_entry(door_model)
 	if entry.conn_child_rem and entry.conn_child_rem.Connected then
 		entry.conn_child_rem:Disconnect()
 	end
-	if entry.hl then
+	if is_inst(entry.hl) then
 		entry.hl:Destroy()
 		entry.hl = nil
 		active_highlights = math.max(0, active_highlights - 1)
 	end
-	if entry.has_proxy and entry.adornee and entry.adornee.Parent then
-		entry.adornee:Destroy()
-	end
-	if entry.billboard then
+	if is_inst(entry.billboard) then
 		entry.billboard:Destroy()
 		entry.billboard = nil
 	end
@@ -306,12 +275,12 @@ local function remove_entity_entry(obj)
 	if entry.conn_destroy and entry.conn_destroy.Connected then
 		entry.conn_destroy:Disconnect()
 	end
-	if entry.hl then
+	if is_inst(entry.hl) then
 		entry.hl:Destroy()
 		entry.hl = nil
 		active_highlights = math.max(0, active_highlights - 1)
 	end
-	if entry.billboard then
+	if is_inst(entry.billboard) then
 		entry.billboard:Destroy()
 		entry.billboard = nil
 	end
@@ -323,23 +292,23 @@ end
 
 local function refresh_door_visibility(entry, min_room, max_room)
 	local is_relevant = (entry.room_num >= min_room - 1 and entry.room_num <= max_room + 1)
-	local show = cfg.door_esp and is_relevant and entry.target and entry.target.Parent ~= nil
+	local show = cfg.door_esp and is_relevant and is_inst(entry.target) and entry.target.Parent ~= nil
 	entry.visible = show
 
 	if show then
 		hide_barrier_parts(entry.model)
 
-		if not entry.billboard then
+		if not is_inst(entry.billboard) then
 			entry.billboard, entry.label = create_billboard(entry.target, entry.base_text, cfg.door_color)
 		end
 		entry.billboard.Adornee = entry.target
 		entry.billboard.Enabled = true
 		entry.label.TextColor3 = cfg.door_color
 
-		if not entry.hl and active_highlights < max_highlights then
+		if not is_inst(entry.hl) and active_highlights < max_highlights then
 			local hl = Instance.new("Highlight")
 			hl.Name = "door_hl"
-			hl.Adornee = entry.adornee or entry.target
+			hl.Adornee = entry.model
 			hl.FillColor = cfg.door_color
 			hl.OutlineColor = cfg.door_color
 			hl.FillTransparency = 0.78
@@ -348,8 +317,8 @@ local function refresh_door_visibility(entry, min_room, max_room)
 			hl.Parent = gui_holder
 			entry.hl = hl
 			active_highlights = active_highlights + 1
-		elseif entry.hl then
-			entry.hl.Adornee = entry.adornee or entry.target
+		elseif is_inst(entry.hl) then
+			entry.hl.Adornee = entry.model
 			entry.hl.FillColor = cfg.door_color
 			entry.hl.OutlineColor = cfg.door_color
 			entry.hl.Enabled = true
@@ -361,10 +330,10 @@ local function refresh_door_visibility(entry, min_room, max_room)
 			set_tracer_visible(entry.tracer, false)
 		end
 	else
-		if entry.billboard then
+		if is_inst(entry.billboard) then
 			entry.billboard.Enabled = false
 		end
-		if entry.hl then
+		if is_inst(entry.hl) then
 			entry.hl:Destroy()
 			entry.hl = nil
 			active_highlights = math.max(0, active_highlights - 1)
@@ -380,18 +349,18 @@ local function refresh_entity_visibility(entry, min_room, max_room)
 	if entry.room_based and entry.room_num then
 		is_relevant = (entry.room_num >= min_room - 1 and entry.room_num <= max_room + 1)
 	end
-	local show = cfg.entity_esp and is_relevant and entry.target and entry.target.Parent ~= nil
+	local show = cfg.entity_esp and is_relevant and is_inst(entry.target) and entry.target.Parent ~= nil
 	entry.visible = show
 
 	if show then
-		if not entry.billboard then
+		if not is_inst(entry.billboard) then
 			entry.billboard, entry.label = create_billboard(entry.target, entry.base_text, cfg.entity_color)
 		end
 		entry.billboard.Adornee = entry.target
 		entry.billboard.Enabled = true
 		entry.label.TextColor3 = cfg.entity_color
 
-		if not entry.hl and active_highlights < max_highlights then
+		if not is_inst(entry.hl) and active_highlights < max_highlights then
 			local hl = Instance.new("Highlight")
 			hl.Name = "entity_hl"
 			hl.Adornee = entry.adornee or entry.model
@@ -403,7 +372,7 @@ local function refresh_entity_visibility(entry, min_room, max_room)
 			hl.Parent = gui_holder
 			entry.hl = hl
 			active_highlights = active_highlights + 1
-		elseif entry.hl then
+		elseif is_inst(entry.hl) then
 			entry.hl.Adornee = entry.adornee or entry.model
 			entry.hl.FillColor = cfg.entity_color
 			entry.hl.OutlineColor = cfg.entity_color
@@ -416,10 +385,10 @@ local function refresh_entity_visibility(entry, min_room, max_room)
 			set_tracer_visible(entry.tracer, false)
 		end
 	else
-		if entry.billboard then
+		if is_inst(entry.billboard) then
 			entry.billboard.Enabled = false
 		end
-		if entry.hl then
+		if is_inst(entry.hl) then
 			entry.hl:Destroy()
 			entry.hl = nil
 			active_highlights = math.max(0, active_highlights - 1)
@@ -433,14 +402,14 @@ end
 local function refresh_all()
 	local min_r, max_r = get_room_bounds()
 	for model, entry in pairs(door_entries) do
-		if not model.Parent then
+		if not is_inst(model) or not model.Parent then
 			remove_door_entry(model)
 		else
 			refresh_door_visibility(entry, min_r, max_r)
 		end
 	end
 	for obj, entry in pairs(entity_entries) do
-		if not obj.Parent then
+		if not is_inst(obj) or not obj.Parent then
 			remove_entity_entry(obj)
 		else
 			refresh_entity_visibility(entry, min_r, max_r)
@@ -449,37 +418,49 @@ local function refresh_all()
 end
 
 local function update_door_text(entry)
-	local locked = (entry.model:FindFirstChild("Lock") ~= nil) or (entry.model:FindFirstChild("Lock", true) ~= nil)
+	if not is_inst(entry.model) then return end
+	local locked = (entry.model:FindFirstChild("Lock") ~= nil) or (entry.model:FindFirstChild("KeyObtain") ~= nil)
 	local suffix = locked and " [locked]" or ""
 	entry.base_text = "Door " .. entry.door_num .. suffix
 end
 
+local function find_door_part(door_model)
+	if not is_inst(door_model) then return nil end
+	local d = door_model:FindFirstChild("Door")
+	if d and d:IsA("BasePart") then
+		return d
+	end
+	if door_model:IsA("Model") and door_model.PrimaryPart then
+		return door_model.PrimaryPart
+	end
+	return door_model:FindFirstChildWhichIsA("BasePart", true)
+end
+
 local function register_door(door_model)
-	if door_entries[door_model] then return end
-	if not door_model or door_model.Name ~= "Door" or not door_model.Parent then return end
+	if not is_inst(door_model) or door_entries[door_model] then return end
+	if door_model.Name ~= "Door" or not door_model:IsA("Model") or not is_inst(door_model.Parent) then return end
 
 	local room_num = tonumber(door_model.Parent.Name)
 	if not room_num then return end
 
 	task.spawn(function()
-		local target = door_model:FindFirstChild("Door")
-		if not (target and target:IsA("BasePart")) then
-			target = door_model:WaitForChild("Door", 30)
+		local target = find_door_part(door_model)
+		local tries = 0
+		while not target and is_inst(door_model) and door_model.Parent and tries < 50 do
+			tries = tries + 1
+			task.wait(0.1)
+			target = find_door_part(door_model)
 		end
-		if not target or not target:IsA("BasePart") then
-			target = door_model.PrimaryPart or door_model:FindFirstChildWhichIsA("BasePart", true)
-		end
-		if not target or not cfg.door_esp or not door_model.Parent or door_entries[door_model] then
+
+		if not target or not cfg.door_esp or not is_inst(door_model) or not door_model.Parent or door_entries[door_model] then
 			return
 		end
 
-		local adornee, has_proxy = build_highlight_adornee(door_model, target)
+		hide_barrier_parts(door_model)
 
 		local entry = {
 			model = door_model,
 			target = target,
-			adornee = adornee,
-			has_proxy = has_proxy,
 			room_num = room_num,
 			door_num = get_door_number(door_model, room_num),
 			base_text = "",
@@ -488,22 +469,15 @@ local function register_door(door_model)
 
 		update_door_text(entry)
 
-		entry.conn_child_add = door_model.DescendantAdded:Connect(function(ch)
+		entry.conn_child_add = door_model.ChildAdded:Connect(function(ch)
 			if ch:IsA("BasePart") and (ch.Name == "Hidden" or ch.Name == "ColBox") then
 				ch.Transparency = 1
 			elseif ch.Name == "Lock" then
 				update_door_text(entry)
-			elseif ch.Name == "Door" and ch:IsA("BasePart") then
-				local new_adornee, new_proxy = build_highlight_adornee(door_model, entry.target)
-				entry.adornee = new_adornee
-				entry.has_proxy = new_proxy
-				if entry.hl then
-					entry.hl.Adornee = entry.adornee
-				end
 			end
 		end)
 
-		entry.conn_child_rem = door_model.DescendantRemoved:Connect(function(ch)
+		entry.conn_child_rem = door_model.ChildRemoved:Connect(function(ch)
 			if ch.Name == "Lock" then
 				task.defer(function()
 					if door_entries[door_model] then
@@ -524,6 +498,7 @@ local function register_door(door_model)
 end
 
 local function find_entity_part(obj)
+	if not is_inst(obj) then return nil end
 	if obj:IsA("BasePart") then
 		return obj
 	end
@@ -546,6 +521,7 @@ local function find_entity_part(obj)
 end
 
 local function get_parent_room_num(obj)
+	if not is_inst(obj) then return nil end
 	local rooms = ws:FindFirstChild("CurrentRooms")
 	if not rooms then return nil end
 	for _, r in ipairs(rooms:GetChildren()) do
@@ -557,7 +533,7 @@ local function get_parent_room_num(obj)
 end
 
 local function register_entity(obj, alias, room_based, room_num)
-	if entity_entries[obj] or not obj or not obj.Parent then return end
+	if not is_inst(obj) or entity_entries[obj] or not obj.Parent then return end
 
 	local target = find_entity_part(obj)
 	if not target then return end
@@ -598,20 +574,21 @@ local function register_entity(obj, alias, room_based, room_num)
 end
 
 local function handle_spawned_entity(ent)
+	if not is_inst(ent) then return end
 	local data = spawn_entities[ent.Name]
 	if not data then return end
 
 	task.spawn(function()
 		local tries = 0
 		local root = find_entity_part(ent)
-		while not root and ent.Parent and tries < 40 do
+		while not root and is_inst(ent) and ent.Parent and tries < 40 do
 			tries = tries + 1
 			task.wait(0.05)
 			root = find_entity_part(ent)
 		end
 		task.wait(0.1)
 
-		if not ent.Parent or not root then return end
+		if not is_inst(ent) or not ent.Parent or not root then return end
 		if lp:DistanceFromCharacter(root.Position) >= 10000 then return end
 
 		local alias = data.alias
@@ -630,7 +607,7 @@ local function handle_spawned_entity(ent)
 end
 
 local function handle_room_descendant(inst)
-	if not inst or not inst.Parent then return end
+	if not is_inst(inst) or not inst.Parent then return end
 	local name = inst.Name
 
 	if room_entities[name] then
@@ -640,12 +617,13 @@ local function handle_room_descendant(inst)
 			fire_notify("Entity 'Groundskeeper' has spawned.", "Avoid stepping on the grass.", 5)
 		end
 		task.defer(function()
-			if inst.Parent then
+			if is_inst(inst) and inst.Parent then
 				register_entity(inst, alias, true, r_num)
 			end
 		end)
 	elseif name == "MandrakeLive" then
 		task.defer(function()
+			if not is_inst(inst) then return end
 			local hole = inst:FindFirstChild("Hole")
 			if hole then
 				register_entity(hole, "Mandrake Hole", true, get_parent_room_num(inst))
@@ -656,7 +634,7 @@ end
 
 local function check_halt_room(room)
 	task.defer(function()
-		if not room or not room.Parent then return end
+		if not is_inst(room) or not room.Parent then return end
 		local raw = room:GetAttribute("RawName")
 		if (raw and tostring(raw):find("Halt")) or room:GetAttribute("Shade") == true then
 			if cfg.entity_notify then
@@ -681,7 +659,7 @@ local function step_render()
 			if rooms then
 				for _, room in ipairs(rooms:GetChildren()) do
 					local d = room:FindFirstChild("Door")
-					if d and not door_entries[d] then
+					if d and d:IsA("Model") and not door_entries[d] then
 						register_door(d)
 					end
 				end
@@ -697,11 +675,11 @@ local function step_render()
 
 	if cfg.door_esp then
 		for model, entry in pairs(door_entries) do
-			if not model.Parent or not entry.target or not entry.target.Parent then
+			if not is_inst(model) or not model.Parent or not is_inst(entry.target) or not entry.target.Parent then
 				remove_door_entry(model)
 			elseif entry.visible then
 				local pos = entry.target.Position
-				if entry.label then
+				if is_inst(entry.label) then
 					if root then
 						local dist = math.floor((root.Position - pos).Magnitude)
 						entry.label.Text = entry.base_text .. " [" .. tostring(dist) .. "m]"
@@ -726,11 +704,11 @@ local function step_render()
 
 	if cfg.entity_esp then
 		for obj, entry in pairs(entity_entries) do
-			if not obj.Parent or not entry.target or not entry.target.Parent then
+			if not is_inst(obj) or not obj.Parent or not is_inst(entry.target) or not entry.target.Parent then
 				remove_entity_entry(obj)
 			elseif entry.visible then
 				local pos = entry.target.Position
-				if entry.label then
+				if is_inst(entry.label) then
 					if root then
 						local dist = math.floor((root.Position - pos).Magnitude)
 						entry.label.Text = entry.base_text .. " [" .. tostring(dist) .. "m]"
@@ -770,25 +748,27 @@ local function start_door_tracking()
 
 	for _, room in ipairs(rooms:GetChildren()) do
 		local d = room:FindFirstChild("Door")
-		if d then
+		if d and d:IsA("Model") then
 			register_door(d)
 		end
 	end
 
-	table.insert(conns_door, rooms.DescendantAdded:Connect(function(inst)
-		if not cfg.door_esp then return end
-		if inst.Name == "Door" and inst:IsA("Model") and inst.Parent and inst.Parent.Parent == rooms then
-			register_door(inst)
-		elseif inst.Name == "Door" and inst:IsA("BasePart") and inst.Parent and inst.Parent.Name == "Door" then
-			register_door(inst.Parent)
-		elseif inst:IsA("BasePart") and (inst.Name == "Hidden" or inst.Name == "ColBox") and inst.Parent and inst.Parent.Name == "Door" then
-			inst.Transparency = 1
-		end
+	table.insert(conns_door, rooms.ChildAdded:Connect(function(room)
+		task.spawn(function()
+			if not is_inst(room) then return end
+			local d = room:WaitForChild("Door", 15)
+			if d and d:IsA("Model") and cfg.door_esp then
+				register_door(d)
+				refresh_all()
+			end
+		end)
 	end))
 
 	table.insert(conns_door, rooms.ChildRemoved:Connect(function(room)
+		if not is_inst(room) then return end
+		local r_num = tonumber(room.Name)
 		for model, entry in pairs(door_entries) do
-			if entry.room_num == tonumber(room.Name) or not model:IsDescendantOf(rooms) then
+			if entry.room_num == r_num or not model.Parent then
 				remove_door_entry(model)
 			end
 		end
@@ -813,6 +793,18 @@ local function stop_door_tracking()
 	update_render_loop()
 end
 
+local function scan_room_children(room)
+	if not is_inst(room) then return end
+	for _, ch in ipairs(room:GetChildren()) do
+		handle_room_descendant(ch)
+		if ch.Name == "Assets" or ch:IsA("Folder") or ch:IsA("Model") then
+			for _, sub in ipairs(ch:GetChildren()) do
+				handle_room_descendant(sub)
+			end
+		end
+	end
+end
+
 local function sync_entity_tracking()
 	disconnect_list(conns_entity)
 	if not cfg.entity_esp and not cfg.entity_notify then
@@ -830,18 +822,29 @@ local function sync_entity_tracking()
 	end
 
 	table.insert(conns_entity, ws.ChildAdded:Connect(function(ch)
-		if spawn_entities[ch.Name] then
+		if is_inst(ch) and spawn_entities[ch.Name] then
 			handle_spawned_entity(ch)
 		end
 	end))
 
 	local rooms = ws:FindFirstChild("CurrentRooms")
-	if rooms then
-		for _, desc in ipairs(rooms:GetDescendants()) do
-			handle_room_descendant(desc)
+	if is_inst(rooms) then
+		for _, room in ipairs(rooms:GetChildren()) do
+			scan_room_children(room)
 		end
-		table.insert(conns_entity, rooms.DescendantAdded:Connect(handle_room_descendant))
-		table.insert(conns_entity, rooms.ChildAdded:Connect(check_halt_room))
+		table.insert(conns_entity, rooms.DescendantAdded:Connect(function(inst)
+			if is_inst(inst) then
+				handle_room_descendant(inst)
+			end
+		end))
+		table.insert(conns_entity, rooms.ChildAdded:Connect(function(room)
+			if is_inst(room) then
+				check_halt_room(room)
+				task.delay(0.5, function()
+					scan_room_children(room)
+				end)
+			end
+		end))
 	end
 
 	if not cfg.entity_esp then
@@ -890,9 +893,9 @@ function vis.door_tracers(state)
 end
 
 local function apply_dupe_visual(door)
-	if not door then return end
+	if not is_inst(door) then return end
 	local sign = door:FindFirstChild("Sign") or door:FindFirstChild("Sign", true)
-	if not sign then return end
+	if not is_inst(sign) then return end
 
 	local duped_label = sign:FindFirstChild("Duped", true)
 	if duped_label and duped_label:IsA("ImageLabel") then
@@ -907,10 +910,10 @@ local function apply_dupe_visual(door)
 end
 
 local function check_inst(inst)
-	if not inst then return end
+	if not is_inst(inst) then return end
 	if inst.Name == "DoorFake" or inst.Name == "FakeDoor" then
 		apply_dupe_visual(inst)
-	elseif inst.Name == "Sign" and inst.Parent and (inst.Parent.Name == "DoorFake" or inst.Parent.Name == "FakeDoor") then
+	elseif inst.Name == "Sign" and is_inst(inst.Parent) and (inst.Parent.Name == "DoorFake" or inst.Parent.Name == "FakeDoor") then
 		apply_dupe_visual(inst.Parent)
 	end
 end
@@ -920,12 +923,23 @@ function vis.dupe(state)
 	disconnect_list(conns_dupe)
 
 	local rooms = ws:FindFirstChild("CurrentRooms") or ws
+	if not is_inst(rooms) then return end
 
 	if active_dupe then
-		for _, inst in ipairs(rooms:GetDescendants()) do
+		for _, room in ipairs(rooms:GetChildren()) do
 			if not active_dupe then break end
-			if inst.Name == "DoorFake" or inst.Name == "FakeDoor" then
-				apply_dupe_visual(inst)
+			if is_inst(room) then
+				for _, ch in ipairs(room:GetChildren()) do
+					if ch.Name == "DoorFake" or ch.Name == "FakeDoor" or ch.Name == "SideroomDupe" then
+						apply_dupe_visual(ch)
+					elseif ch.Name == "Assets" then
+						for _, sub in ipairs(ch:GetChildren()) do
+							if sub.Name == "DoorFake" or sub.Name == "FakeDoor" then
+								apply_dupe_visual(sub)
+							end
+						end
+					end
+				end
 			end
 		end
 
@@ -943,7 +957,7 @@ function vis.cleanup()
 	vis.door_esp(false)
 	vis.entity_esp(false)
 	vis.entity_notify(false)
-	if gui_holder then
+	if is_inst(gui_holder) then
 		gui_holder:Destroy()
 	end
 end
