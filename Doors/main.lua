@@ -60,9 +60,17 @@ sec_vis_esp:CreateToggle("Enable Entity ESP", false, function(val)
 	end)
 end, "Highlights all entities and notifies when an entity spawns")
 
+sec_vis_esp:CreateToggle("Enable Item ESP", false, function(val)
+	vis.item_esp(val)
+end, "Highlights items and drops with name and distance")
+
+sec_vis_esp:CreateToggle("Enable Gold ESP", false, function(val)
+	vis.gold_esp(val)
+end, "Highlights gold piles and stardust with value and distance")
+
 sec_vis_esp:CreateToggle("Enable Tracers", false, function(val)
 	vis.door_tracers(val)
-end, "Draws thin tracer lines to active doors and entities")
+end, "Draws thin tracer lines to active doors, entities, items, and gold")
 
 local tab_doors = wnd:CreateTab("Hotel")
 
