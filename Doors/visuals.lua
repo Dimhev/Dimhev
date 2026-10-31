@@ -14,14 +14,18 @@ local cfg = {
 	door_esp = false,
 	entity_esp = false,
 	entity_notify = false,
+	item_esp = false,
+	gold_esp = false,
 	tracers = false,
 	door_color = Color3.fromRGB(0, 200, 255),
-	entity_color = Color3.fromRGB(255, 65, 65)
+	entity_color = Color3.fromRGB(255, 65, 65),
+	item_color = Color3.fromRGB(130, 255, 130),
+	gold_color = Color3.fromRGB(255, 215, 0)
 }
 
 local notify_callback = nil
 local active_highlights = 0
-local max_highlights = 25
+local max_highlights = 31
 local render_conn = nil
 local last_room_check = 0
 
@@ -98,7 +102,6 @@ local function create_billboard(target, text, col)
 	return bb, lbl
 end
 
--- Пул Highlight
 local function alloc_highlight(adornee, color, fill_trans, outline_trans)
 	if active_highlights >= max_highlights then return nil end
 	local hl = Instance.new("Highlight")
@@ -205,23 +208,25 @@ local ctx = {
 	tracer = tracer_service
 }
 
-local GITHUB_BASE = "https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/components/"
+local base = "https://raw.githubusercontent.com/Dimhev/Dimhev/main/Doors/components/"
 
 local function load_component(name)
-	local url = GITHUB_BASE .. name .. ".lua"
+	local url = base .. name .. ".lua"
 	local ok, res = pcall(function()
 		return loadstring(game:HttpGet(url))()
 	end)
-	if not ok or type(res) ~= "table" then
-		warn("[ESP Loader] Не удалось загрузить компонент '" .. name .. "': " .. tostring(res))
-		return nil
-	end
 	res.init(ctx)
 	return res
 end
 
 local doors_comp = load_component("doors")
 local entities_comp = load_component("entities")
+local items_comp = load_component("items")
+local gold_comp = load_component("gold")
+
+local function has_any_esp()
+	return cfg.door_esp or cfg.entity_esp or cfg.item_esp or cfg.gold_esp
+end
 
 local function refresh_all()
 	local min_r, max_r = get_room_bounds()
@@ -231,10 +236,16 @@ local function refresh_all()
 	if entities_comp then
 		entities_comp.refresh(min_r, max_r)
 	end
+	if items_comp then
+		items_comp.refresh(min_r, max_r)
+	end
+	if gold_comp then
+		gold_comp.refresh(min_r, max_r)
+	end
 end
 
 local function step_render()
-	if not cfg.door_esp and not cfg.entity_esp then return end
+	if not has_any_esp() then return end
 	local cam = ws.CurrentCamera
 	if not cam then return end
 
@@ -243,6 +254,12 @@ local function step_render()
 		last_room_check = now
 		if cfg.door_esp and doors_comp then
 			doors_comp.scan_rooms()
+		end
+		if cfg.item_esp and items_comp then
+			items_comp.scan_rooms()
+		end
+		if cfg.gold_esp and gold_comp then
+			gold_comp.scan_rooms()
 		end
 		refresh_all()
 	end
@@ -258,12 +275,18 @@ local function step_render()
 	if cfg.entity_esp and entities_comp then
 		entities_comp.step(cam, root, origin)
 	end
+	if cfg.item_esp and items_comp then
+		items_comp.step(cam, root, origin)
+	end
+	if cfg.gold_esp and gold_comp then
+		gold_comp.step(cam, root, origin)
+	end
 end
 
 local function update_render_loop()
-	if (cfg.door_esp or cfg.entity_esp) and not render_conn then
+	if has_any_esp() and not render_conn then
 		render_conn = run.RenderStepped:Connect(step_render)
-	elseif not cfg.door_esp and not cfg.entity_esp and render_conn then
+	elseif not has_any_esp() and render_conn then
 		render_conn:Disconnect()
 		render_conn = nil
 	end
@@ -368,6 +391,32 @@ function vis.entity_notify(state, notify_fn)
 	update_render_loop()
 end
 
+function vis.item_esp(state)
+	cfg.item_esp = state
+	if items_comp then
+		if state then
+			items_comp.start_tracking()
+			refresh_all()
+		else
+			items_comp.stop_tracking()
+		end
+	end
+	update_render_loop()
+end
+
+function vis.gold_esp(state)
+	cfg.gold_esp = state
+	if gold_comp then
+		if state then
+			gold_comp.start_tracking()
+			refresh_all()
+		else
+			gold_comp.stop_tracking()
+		end
+	end
+	update_render_loop()
+end
+
 function vis.door_tracers(state)
 	cfg.tracers = state
 	refresh_all()
@@ -378,12 +427,20 @@ function vis.cleanup()
 	vis.door_esp(false)
 	vis.entity_esp(false)
 	vis.entity_notify(false)
+	vis.item_esp(false)
+	vis.gold_esp(false)
 
 	if doors_comp then
 		doors_comp.cleanup()
 	end
 	if entities_comp then
 		entities_comp.cleanup()
+	end
+	if items_comp then
+		items_comp.cleanup()
+	end
+	if gold_comp then
+		gold_comp.cleanup()
 	end
 
 	if render_conn then
