@@ -40,7 +40,10 @@ local rusher_aliases = {
 	["AR0xMBUSH"] = true,
 	["RNIUSHCG=="] = true,
 	["Frozen Ambush"] = true,
-	["Custom Entity"] = true
+	["Custom Entity"] = true,
+	["Scribbles"] = true,
+	["BashMoving"] = true,
+	["DronesStampede"] = true
 }
 
 local room_entities = {
