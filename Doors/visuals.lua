@@ -154,68 +154,136 @@ local function free_highlight(hl)
 end
 
 local tracer_service = {}
+local tracer_registry = {}
 
-function tracer_service.create(col)
-	local ok, line = pcall(function()
-		local d = Drawing.new("Line")
-		d.Visible = false
-		d.Thickness = 1
-		d.Transparency = 0.85
-		d.Color = col
-		return d
-	end)
-	if ok and line then
-		return { is_drawing = true, obj = line }
+function tracer_service.create(color)
+	if not gui_holder.Parent then
+		return nil
 	end
 
-	local f = Instance.new("Frame")
-	f.BackgroundColor3 = col
-	f.BackgroundTransparency = 0.2
-	f.BorderSizePixel = 0
-	f.AnchorPoint = Vector2.new(0.5, 0.5)
-	f.Visible = false
-	f.Parent = gui_holder
-	return { is_drawing = false, obj = f }
+	local line = nil
+
+	local ok = pcall(function()
+		line = Drawing.new("Line")
+		line.Visible = false
+		line.Thickness = 1
+		line.Transparency = 0.85
+		line.Color = color
+	end)
+
+	local tracer
+
+	if ok and line then
+		tracer = {
+			is_drawing = true,
+			obj = line,
+			visible = false,
+		}
+	else
+		if line then
+			pcall(function()
+				line:Remove()
+			end)
+		end
+
+		local frame = Instance.new("Frame")
+		frame.Name = "esp_tracer"
+		frame.BackgroundColor3 = color
+		frame.BackgroundTransparency = 0.2
+		frame.BorderSizePixel = 0
+		frame.AnchorPoint = Vector2.new(0.5, 0.5)
+		frame.Visible = false
+		frame.Parent = gui_holder
+
+		tracer = {
+			is_drawing = false,
+			obj = frame,
+			visible = false,
+		}
+	end
+
+	tracer_registry[tracer] = true
+	return tracer
 end
 
-function tracer_service.destroy(tr)
-	if not tr then return end
-	if tr.is_drawing then
+function tracer_service.destroy(tracer)
+	if not tracer or not tracer_registry[tracer] then
+		return
+	end
+
+	tracer_registry[tracer] = nil
+
+	local object = tracer.obj
+	tracer.obj = nil
+	tracer.visible = false
+
+	if not object then
+		return
+	end
+
+	if tracer.is_drawing then
 		pcall(function()
-			tr.obj.Visible = false
-			tr.obj:Remove()
+			object.Visible = false
+		end)
+
+		pcall(function()
+			object:Remove()
 		end)
 	else
-		if is_inst(tr.obj) then
-			tr.obj:Destroy()
-		end
+		object:Destroy()
 	end
 end
 
-function tracer_service.set_visible(tr, state)
-	if not tr then return end
-	pcall(function()
-		tr.obj.Visible = state
+function tracer_service.set_visible(tracer, state)
+	if not tracer
+		or not tracer.obj
+		or tracer.visible == state
+	then
+		return
+	end
+
+	local ok = pcall(function()
+		tracer.obj.Visible = state
 	end)
+
+	if ok then
+		tracer.visible = state
+	end
 end
 
-function tracer_service.update(tr, from_pos, to_pos, col)
-	if not tr then return end
-	if tr.is_drawing then
-		tr.obj.From = from_pos
-		tr.obj.To = to_pos
-		tr.obj.Color = col
-		tr.obj.Visible = true
-	else
-		local diff = to_pos - from_pos
-		local dist = diff.Magnitude
-		local mid = (from_pos + to_pos) * 0.5
-		tr.obj.Position = UDim2.fromOffset(mid.X, mid.Y)
-		tr.obj.Size = UDim2.fromOffset(dist, 1)
-		tr.obj.Rotation = math.deg(math.atan2(diff.Y, diff.X))
-		tr.obj.BackgroundColor3 = col
-		tr.obj.Visible = true
+function tracer_service.update(tracer, from_pos, to_pos, color)
+	if not tracer or not tracer.obj then
+		return
 	end
+
+	local object = tracer.obj
+
+	if tracer.is_drawing then
+		object.From = from_pos
+		object.To = to_pos
+		object.Color = color
+	else
+		local difference = to_pos - from_pos
+		local midpoint = (from_pos + to_pos) * 0.5
+
+		object.Position = UDim2.fromOffset(
+			midpoint.X,
+			midpoint.Y
+		)
+
+		object.Size = UDim2.fromOffset(
+			difference.Magnitude,
+			1
+		)
+
+		object.Rotation = math.deg(
+			math.atan2(difference.Y, difference.X)
+		)
+
+		object.BackgroundColor3 = color
+	end
+
+	tracer_service.set_visible(tracer, true)
 end
 
 local ctx = {
