@@ -353,6 +353,20 @@ local function is_rush_active()
 	return false
 end
 
+-- Вспомогательная математическая функция проекции вектора на наклонную поверхность (из скрипта Evade)
+local function project_on_plane(vec, normal)
+	local projected = vec - (normal * vec:Dot(normal))
+	if projected.Magnitude > 0.001 then
+		return projected.Unit
+	end
+	return vec
+end
+
+-- Настройки для плавного пролета лестниц и диагоналей (Wedges)
+local SLOPE_MAX_NORMAL_Y = 0.996
+local SLOPE_MIN_NORMAL_Y = 0.15
+local SLOPE_GLIDE_BOOST  = 0.22 -- Множитель проталкивания по диагонали
+
 function ign.rush(state)
 	active_rush = state
 	disconnect_list(conns_rush)
@@ -377,6 +391,8 @@ function ign.rush(state)
 
 		cleanup_rush_clones()
 
+		-- Устанавливаем абсолютно нулевое трение (Friction = 0, FrictionWeight = 100), 
+		-- чтобы клон никогда не цеплялся за грани ступенек
 		local smooth_physics = PhysicalProperties.new(0.7, 0, 0, 100, 100)
 
 		col_clone = real_col:Clone()
@@ -399,6 +415,12 @@ function ign.rush(state)
 		if col_part_clone:FindFirstChild("CollisionCrouch") then
 			col_part_clone.CollisionCrouch:Destroy()
 		end
+
+		-- Параметры рейкаста для определения лестниц и наклонных балок
+		local ray_params = RaycastParams.new()
+		ray_params.FilterType = Enum.RaycastFilterType.Exclude
+		ray_params.RespectCanCollide = true
+		ray_params.FilterDescendantsInstances = {char}
 
 		local is_lowered = false
 
@@ -426,7 +448,9 @@ function ign.rush(state)
 
 		local last_crouch_send = 0
 
-		local c_render = run.RenderStepped:Connect(function()
+		-- Используем Stepped / PreSimulation + Heartbeat вместо одного лишь RenderStepped,
+		-- чтобы физика не раскрывала хитбокс между кадрами
+		local function update_rush_physics(dt)
 			if not active_rush then return end
 			local c = lp.Character
 			if not c then return end
@@ -451,19 +475,80 @@ function ign.rush(state)
 			end
 
 			local danger = is_rush_active()
+			local is_crouch = is_crouching(c)
+			local clone_crouch = col_clone:FindFirstChild("CollisionCrouch")
 
-			local target_hip = danger and 0.05 or 0.25
-			h.HipHeight = target_hip
-
+			-- Определяем, находится ли игрок на лестнице или диагональном Wedge
+			local move_dir = h.MoveDirection
 			local vel = r.AssemblyLinearVelocity
-			local max_up_vel = danger and 2.5 or 7.0
-			if vel.Y > max_up_vel and h:GetState() ~= Enum.HumanoidStateType.Jumping then
-				r.AssemblyLinearVelocity = Vector3.new(vel.X, max_up_vel, vel.Z)
+			local horiz_vel = Vector3.new(vel.X, 0, vel.Z)
+			local horiz_speed = horiz_vel.Magnitude
+
+			-- Выпускаем лучи из реального положения тела (с учетом того, что Root опущен)
+			local body_origin = r.Position + Vector3.new(0, 2.3, 0)
+			local down_hit = workspace:Raycast(body_origin, Vector3.new(0, -5.5, 0), ray_params)
+
+			local forward_dir = (horiz_speed > 3) and horiz_vel.Unit or move_dir
+			local forward_hit = nil
+			if forward_dir.Magnitude > 0.01 then
+				local check_vec = (forward_dir + Vector3.new(0, -0.35, 0)).Unit * 4.5
+				forward_hit = workspace:Raycast(body_origin, check_vec, ray_params)
 			end
 
+			local slope_hit = nil
+			if forward_hit and forward_hit.Instance and forward_hit.Instance.CanCollide then
+				local ny = forward_hit.Normal.Y
+				if ny < SLOPE_MAX_NORMAL_Y and ny > SLOPE_MIN_NORMAL_Y then
+					slope_hit = forward_hit
+				end
+			end
+			if not slope_hit and down_hit and down_hit.Instance and down_hit.Instance.CanCollide then
+				local ny = down_hit.Normal.Y
+				if ny < SLOPE_MAX_NORMAL_Y and ny > SLOPE_MIN_NORMAL_Y then
+					slope_hit = down_hit
+				end
+			end
+
+			-- Если мы на лестнице/склоне, чуть приподнимаем HipHeight, чтобы Root не бился о грани
+			local target_hip = danger and 0.05 or 0.25
+			if slope_hit and not danger then
+				target_hip = 0.45
+			elseif slope_hit and danger then
+				target_hip = 0.20
+			end
+			h.HipHeight = target_hip
+
+			-- Логика пролета по диагоналям (Slope / Wedge Glide)
+			if slope_hit and move_dir.Magnitude > 0 and dt then
+				local norm = slope_hit.Normal
+				local tangent = project_on_plane(move_dir, norm)
+				local dt_scale = math.min(dt * 60, 2)
+
+				-- Мягко проталкиваем CFrame вдоль касательной склона и чуть отрываем от поверхности (norm * 0.04),
+				-- чтобы убрать эффект "затягивания вниз" и спотыкания
+				local step_boost = SLOPE_GLIDE_BOOST * dt_scale
+				r.CFrame = r.CFrame + (tangent * step_boost) + (norm * 0.04)
+
+				-- Сохраняем импульс вдоль диагонали
+				local target_speed = math.max(horiz_speed, h.WalkSpeed)
+				local glide_vel = tangent * target_speed
+				if tangent.Y > 0 then
+					glide_vel = glide_vel + (norm * 2.0)
+				end
+				r.AssemblyLinearVelocity = Vector3.new(glide_vel.X, glide_vel.Y, glide_vel.Z)
+			else
+				-- Лимит вертикальной скорости работает ТОЛЬКО когда мы НЕ поднимаемся по склону,
+				-- иначе на лестнице тебя будет прижимать к полу и тормозить
+				local max_up_vel = danger and 2.5 or 7.0
+				if vel.Y > max_up_vel and h:GetState() ~= Enum.HumanoidStateType.Jumping then
+					r.AssemblyLinearVelocity = Vector3.new(vel.X, max_up_vel, vel.Z)
+				end
+			end
+
+			-- Отключаем коллизию всем частям, кроме нашего клона
 			r.CanCollide = false
 			for _, part in ipairs(c:GetChildren()) do
-				if part:IsA("BasePart") and part ~= col_clone then
+				if part:IsA("BasePart") and part ~= col_clone and part ~= clone_crouch then
 					part.CanCollide = false
 				end
 			end
@@ -473,9 +558,6 @@ function ign.rush(state)
 				col.CollisionCrouch.CanCollide = false
 			end
 
-			local is_crouch = is_crouching(c)
-			local clone_crouch = col_clone:FindFirstChild("CollisionCrouch")
-
 			if clone_crouch then
 				col_clone.CanCollide = not is_crouch
 				clone_crouch.CanCollide = is_crouch
@@ -483,35 +565,56 @@ function ign.rush(state)
 				col_clone.CanCollide = not is_crouch
 			end
 
+			-- Коррекция высоты визуальной модели и камеры через RootJoint
 			local cam_offset_y = 2.396 - target_hip
 			if rj and original_c1 then
 				rj.C1 = original_c1 * CFrame.new(0, -cam_offset_y, 0)
 			end
-				
+
+			-- ВАЖНО: Используем CFrame вместо Position и обнуляем/синхронизируем скорость,
+			-- чтобы хитбокс не раскрывался и не застревал в геометрии
+			local root_cf = r.CFrame
 			local spoof_y = danger and 1.45 or 2.20
-			col.Position = r.Position + Vector3.new(0, spoof_y, 0)
+
+			col.CFrame = root_cf * CFrame.new(0, spoof_y, 0)
+			col.AssemblyLinearVelocity = Vector3.zero
 			if col_p then
-				col_p.Position = r.Position + Vector3.new(0, spoof_y, 0)
+				col_p.CFrame = root_cf * CFrame.new(0, spoof_y, 0)
+				col_p.AssemblyLinearVelocity = Vector3.zero
 			end
 
 			if col:FindFirstChild("CollisionCrouch") and clone_crouch then
-				col.CollisionCrouch.Position = r.Position + Vector3.new(0, spoof_y - 1.0, 0)
+				col.CollisionCrouch.CFrame = root_cf * CFrame.new(0, spoof_y - 1.0, 0)
+				col.CollisionCrouch.AssemblyLinearVelocity = Vector3.zero
 				clone_crouch.CollisionGroup = col.CollisionCrouch.CollisionGroup
 			end
 
 			local clone_offset = danger and 2.35 or 2.25
 			if clone_crouch then
-				clone_crouch.Position = r.Position + Vector3.new(0, clone_offset - 1.0, 0)
+				clone_crouch.CFrame = root_cf * CFrame.new(0, clone_offset - 1.0, 0)
+				clone_crouch.AssemblyLinearVelocity = r.AssemblyLinearVelocity
 			end
 
 			col_clone.CollisionGroup = col.CollisionGroup
-			col_clone.Position = r.Position + Vector3.new(0, clone_offset, 0)
+			col_clone.CFrame = root_cf * CFrame.new(0, clone_offset, 0)
+			col_clone.AssemblyLinearVelocity = r.AssemblyLinearVelocity
 
 			if crouch_rem and (tick() - last_crouch_send > 0.08) then
 				last_crouch_send = tick()
 				crouch_rem:FireServer(true, true)
 			end
+		end
+
+		-- Подключаем и к Stepped (до просчета физики, чтобы хитбокс не раскрывался),
+		-- и к RenderStepped (для идеальной плавности камеры)
+		local c_stepped = run.Stepped:Connect(function(_, dt)
+			update_rush_physics(dt)
 		end)
+		local c_render = run.RenderStepped:Connect(function(dt)
+			update_rush_physics(dt)
+		end)
+
+		table.insert(conns_rush, c_stepped)
 		table.insert(conns_rush, c_render)
 
 	else
@@ -524,9 +627,9 @@ function ign.rush(state)
 
 		if real_col and root then
 			real_col.CanCollide = true
-			real_col.Position = root.Position + Vector3.new(0, 0.18, 0)
+			real_col.CFrame = root.CFrame * CFrame.new(0, 0.18, 0)
 			if real_col:FindFirstChild("CollisionCrouch") then
-				real_col.CollisionCrouch.Position = root.Position + Vector3.new(0, -0.982, 0)
+				real_col.CollisionCrouch.CFrame = root.CFrame * CFrame.new(0, -0.982, 0)
 			end
 		end
 
