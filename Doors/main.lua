@@ -43,8 +43,6 @@ end, "Prevents damage when looking at Eyes or Lookman")
 
 local tab_visuals = wnd:CreateTab("Visuals")
 
-local sec_vis_doors = tab_visuals:CreateSection("ESP")
-
 sec_vis_esp:CreateToggle("Enable Door ESP", false, function(val)
 	vis.door_esp(val)
 end, "Highlights active doors with door number and distance")
