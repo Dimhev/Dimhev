@@ -74,9 +74,10 @@ local itemNames = {
 	["RiftJar"]           = "Rift Jar",
 	["AloeVera"]          = "Aloe Vera",
 	["Donut"]             = "Donut",
-	["Lotus"]             = "Lotus",
-	["BoxingGloves"]      = "Boxing Gloves",
-	["Green_Herb"]        = "Green Herb"
+	["Lotus"] = "Lotus",
+	["BoxingGloves"] = "Boxing Gloves",
+	["Green_Herb"] = "Green Herb",
+	["LiveHintBook"] = "Book"
 }
 
 local function is_inst(v)
