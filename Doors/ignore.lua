@@ -317,7 +317,7 @@ function ign.speed(state, boost)
 	end
 end
 
-local RENDER_BIND_NAME = "AntiRush_Sync"
+local RENDER_BIND_NAME = "AntiRushSync"
 
 local function cleanup_rush_clones()
 	pcall(function()
@@ -381,10 +381,6 @@ function ign.rush(state)
 			return
 		end
 
-		if not char.PrimaryPart then
-			char.PrimaryPart = root
-		end
-
 		if root_joint and not original_c1 then
 			original_c1 = root_joint.C1
 		end
@@ -395,19 +391,22 @@ function ign.rush(state)
 		col_clone.Name = "CollisionClone"
 		col_clone.Massless = true
 		col_clone.CustomPhysicalProperties = smooth_physics
-
-		for _, desc in ipairs(col_clone:GetDescendants()) do
-			if desc:IsA("JointInstance") or desc:IsA("Constraint") or desc:IsA("BodyMover") then
-				desc:Destroy()
-			end
-		end
+		col_clone.Parent = char
 
 		if col_clone:FindFirstChild("CollisionCrouch") then
 			col_clone.CollisionCrouch.Massless = true
 			col_clone.CollisionCrouch.CustomPhysicalProperties = smooth_physics
 		end
 
-		col_clone.Parent = char
+		col_part_clone = real_col_part:Clone()
+		col_part_clone.Name = "CollisionPartClone"
+		col_part_clone.CanCollide = false
+		col_part_clone.Massless = true
+		col_part_clone.Parent = char
+
+		if col_part_clone:FindFirstChild("CollisionCrouch") then
+			col_part_clone.CollisionCrouch:Destroy()
+		end
 
 		local is_lowered = false
 
@@ -475,10 +474,6 @@ function ign.rush(state)
 			local rj = lt and lt:FindFirstChild("Root")
 			if not r or not h or not col or not col_clone then return end
 
-			if not c.PrimaryPart then
-				c.PrimaryPart = r
-			end
-
 			if is_in_minecart_or_cutscene(c, r, col_p) then
 				set_lowered_state(false)
 				col_clone.CanCollide = false
@@ -533,15 +528,13 @@ function ign.rush(state)
 				clone_crouch.CollisionGroup = col.CollisionCrouch.CollisionGroup
 			end
 
-			local clone_offset = 1.95
+			local clone_offset = 1.80
 			if clone_crouch then
 				clone_crouch.Position = r.Position + Vector3.new(0, clone_offset - 1.0, 0)
-				clone_crouch.AssemblyLinearVelocity = Vector3.zero
 			end
 
 			col_clone.CollisionGroup = col.CollisionGroup
 			col_clone.Position = r.Position + Vector3.new(0, clone_offset, 0)
-			col_clone.AssemblyLinearVelocity = Vector3.zero
 
 			if crouch_rem and (tick() - last_crouch_send > 0.08) then
 				last_crouch_send = tick()
