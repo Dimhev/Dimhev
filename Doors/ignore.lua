@@ -1,4 +1,5 @@
 local plrs = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local rep = game:GetService("ReplicatedStorage")
 local run = game:GetService("RunService")
 local ws = game:GetService("Workspace")
@@ -329,7 +330,14 @@ end
 
 local function is_in_minecart()
 	local cam = workspace.CurrentCamera
-	return cam and cam:FindFirstChild("MinecartRig") ~= nil
+	if cam and cam:FindFirstChild("MinecartRig") then
+		return true
+	end
+	local char = lp.Character
+	if char and (char:FindFirstChild("MinecartRig") or char:GetAttribute("InMinecart") == true) then
+		return true
+	end
+	return false
 end
 
 local rush_entities = {
@@ -341,7 +349,10 @@ local rush_entities = {
 	["GlitchRush"] = true,
 	["GlitchAmbush"] = true,
 	["CustomEntity"] = true,
-	["FrozenAmbush"] = true
+	["FrozenAmbush"] = true,
+	["Scribbles"] = true,
+	["BashMoving"] = true,
+	["DronesStampede"] = true
 }
 
 local function is_rush_active()
@@ -349,6 +360,44 @@ local function is_rush_active()
 		if rush_entities[obj.Name] then
 			return true
 		end
+	end
+	return false
+end
+
+local is_cutscene_active = false
+local cutscene_end_time = 0
+
+if remotes_folder and remotes_folder:FindFirstChild("Cutscene") then
+	remotes_folder.Cutscene.OnClientEvent:Connect(function()
+		is_cutscene_active = true
+		cutscene_end_time = tick() + 7.5
+	end)
+end
+
+local function should_bypass_pause(char, root, col_p)
+	if is_in_minecart() then
+		return true
+	end
+	if is_cutscene_active and tick() < cutscene_end_time then
+		return true
+	else
+		is_cutscene_active = false
+	end
+	if not char or not root then
+		return true
+	end
+	if char:GetAttribute("Climbing") == true
+		or char:GetAttribute("Hiding") == true
+		or char:GetAttribute("AnimatingClient") == true
+	then
+		return true
+	end
+	if root.Anchored or (col_p and col_p.Anchored) then
+		return true
+	end
+	local cam = workspace.CurrentCamera
+	if cam and cam.CameraType == Enum.CameraType.Scriptable then
+		return true
 	end
 	return false
 end
@@ -364,6 +413,10 @@ function ign.rush(state)
 	local real_col_part = char and (char:FindFirstChild("CollisionPart") or real_col)
 	local lower_torso = char and char:FindFirstChild("LowerTorso")
 	local root_joint = lower_torso and lower_torso:FindFirstChild("Root")
+
+	local SPOOF_DROP = 2.346
+	local NORMAL_HIP = 2.396
+	local SPOOF_HIP  = 0.05
 
 	if active_rush then
 		if not char or not hum or not root or not real_col then
@@ -403,30 +456,53 @@ function ign.rush(state)
 		local is_lowered = false
 
 		local function set_lowered_state(should_lower)
+			local c = lp.Character
+			local r = c and c:FindFirstChild("HumanoidRootPart")
+			local h = c and c:FindFirstChildOfClass("Humanoid")
+			local lt = c and c:FindFirstChild("LowerTorso")
+			local rj = lt and lt:FindFirstChild("Root")
+			local col = c and c:FindFirstChild("Collision")
+
+			if not r or not h then return end
+
 			if should_lower and not is_lowered then
 				is_lowered = true
-				root.CFrame = root.CFrame * CFrame.new(0, -2.346, 0)
-				hum.HipHeight = 0.25
+				if not r.Anchored then
+					r.CFrame = r.CFrame * CFrame.new(0, -SPOOF_DROP, 0)
+				end
+				h.HipHeight = SPOOF_HIP
+				if rj and original_c1 then
+					rj.C1 = original_c1 * CFrame.new(0, -SPOOF_DROP, 0)
+				end
 				if crouch_rem then
 					crouch_rem:FireServer(true, true)
 				end
 			elseif not should_lower and is_lowered then
 				is_lowered = false
-				root.CFrame = root.CFrame * CFrame.new(0, 2.346, 0)
-				hum.HipHeight = 2.396
-				if root_joint and original_c1 then
-					root_joint.C1 = original_c1
+				if rj and original_c1 then
+					rj.C1 = original_c1
+				end
+				h.HipHeight = NORMAL_HIP
+				if not r.Anchored then
+					r.CFrame = r.CFrame * CFrame.new(0, SPOOF_DROP, 0)
+				end
+				if col then
+					col.CanCollide = true
+					col.Position = r.Position + Vector3.new(0, 0.18, 0)
+					if col:FindFirstChild("CollisionCrouch") then
+						col.CollisionCrouch.Position = r.Position + Vector3.new(0, -0.982, 0)
+					end
 				end
 			end
 		end
 
-		if not is_in_minecart() then
+		if not should_bypass_pause(char, root, real_col_part) then
 			set_lowered_state(true)
 		end
 
 		local last_crouch_send = 0
 
-		local c_render = run.RenderStepped:Connect(function()
+		local c_render = RunService.RenderStepped:Connect(function()
 			if not active_rush then return end
 			local c = lp.Character
 			if not c then return end
@@ -438,8 +514,7 @@ function ign.rush(state)
 			local lt = c:FindFirstChild("LowerTorso")
 			local rj = lt and lt:FindFirstChild("Root")
 			if not r or not h or not col or not col_clone then return end
-
-			if is_in_minecart() or c:GetAttribute("Climbing") == true then
+			if should_bypass_pause(c, r, col_p) then
 				set_lowered_state(false)
 				col_clone.CanCollide = false
 				if col_clone:FindFirstChild("CollisionCrouch") then
@@ -452,13 +527,17 @@ function ign.rush(state)
 
 			local danger = is_rush_active()
 
-			local target_hip = danger and 0.05 or 0.25
-			h.HipHeight = target_hip
+			h.HipHeight = SPOOF_HIP
+			if rj and original_c1 then
+				rj.C1 = original_c1 * CFrame.new(0, -SPOOF_DROP, 0)
+			end
 
 			local vel = r.AssemblyLinearVelocity
-			local max_up_vel = danger and 2.5 or 7.0
-			if vel.Y > max_up_vel and h:GetState() ~= Enum.HumanoidStateType.Jumping then
-				r.AssemblyLinearVelocity = Vector3.new(vel.X, max_up_vel, vel.Z)
+			if h:GetState() ~= Enum.HumanoidStateType.Jumping then
+				local max_up_vel = danger and 1.5 or 14.0
+				if vel.Y > max_up_vel then
+					r.AssemblyLinearVelocity = Vector3.new(vel.X, max_up_vel, vel.Z)
+				end
 			end
 
 			r.CanCollide = false
@@ -483,29 +562,25 @@ function ign.rush(state)
 				col_clone.CanCollide = not is_crouch
 			end
 
-			local cam_offset_y = 2.396 - target_hip
-			if rj and original_c1 then
-				rj.C1 = original_c1 * CFrame.new(0, -cam_offset_y, 0)
-			end
-				
-			local spoof_y = danger and 1.45 or 2.20
+			local spoof_y = 2.328
 			col.Position = r.Position + Vector3.new(0, spoof_y, 0)
 			if col_p then
 				col_p.Position = r.Position + Vector3.new(0, spoof_y, 0)
 			end
 
 			if col:FindFirstChild("CollisionCrouch") and clone_crouch then
-				col.CollisionCrouch.Position = r.Position + Vector3.new(0, spoof_y - 1.0, 0)
+				col.CollisionCrouch.Position = r.Position + Vector3.new(0, 1.328, 0)
 				clone_crouch.CollisionGroup = col.CollisionCrouch.CollisionGroup
 			end
 
-			local clone_offset = danger and 2.35 or 2.25
 			if clone_crouch then
-				clone_crouch.Position = r.Position + Vector3.new(0, clone_offset - 1.0, 0)
+				clone_crouch.Position = r.Position + Vector3.new(0, 0.75, 0)
+				clone_crouch.AssemblyLinearVelocity = r.AssemblyLinearVelocity
 			end
 
 			col_clone.CollisionGroup = col.CollisionGroup
-			col_clone.Position = r.Position + Vector3.new(0, clone_offset, 0)
+			col_clone.Position = r.Position + Vector3.new(0, 1.75, 0)
+			col_clone.AssemblyLinearVelocity = r.AssemblyLinearVelocity
 
 			if crouch_rem and (tick() - last_crouch_send > 0.08) then
 				last_crouch_send = tick()
@@ -517,9 +592,15 @@ function ign.rush(state)
 	else
 		cleanup_rush_clones()
 
+		if root_joint and original_c1 then
+			root_joint.C1 = original_c1
+		end
+
 		if hum and root then
-			root.CFrame = root.CFrame * CFrame.new(0, 2.346, 0)
-			hum.HipHeight = 2.396
+			hum.HipHeight = NORMAL_HIP
+			if not root.Anchored then
+				root.CFrame = root.CFrame * CFrame.new(0, SPOOF_DROP, 0)
+			end
 		end
 
 		if real_col and root then
@@ -530,11 +611,7 @@ function ign.rush(state)
 			end
 		end
 
-		if root_joint and original_c1 then
-			root_joint.C1 = original_c1
-		end
-
-		if crouch_rem then
+		if crouch_rem and char then
 			crouch_rem:FireServer(is_crouching(char), true)
 		end
 	end
